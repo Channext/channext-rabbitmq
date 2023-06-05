@@ -1,0 +1,27 @@
+{
+    "name": "channext/channext-rabbitmq",
+    "description": "The RabbitMQ integration for Channext services",
+    "type": "project",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "Channext\\ChannextRabbitmq\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "illuminate/support": "9.x-dev",
+        "php-amqplib/php-amqplib": "^3.5",
+        "sentry/sentry-laravel": "3.x-dev"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Channext\\ChannextRabbitmq\\Providers\\RabbitMQServiceProvider"
+            ],
+            "aliases": {
+                "RabbitMQ": "Channext\\ChannextRabbitmq\\RabbitMQ\\RabbitMQFacade"
+            }
+        }
+    }
+}
