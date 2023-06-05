@@ -3,6 +3,7 @@
 namespace Channext\ChannextRabbitmq\Providers;
 
 use Channext\ChannextRabbitmq\Console\Commands\RabbitMQCommand;
+use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ;
 use Illuminate\Support\ServiceProvider;
 
 class RabbitMQServiceProvider extends ServiceProvider
@@ -14,6 +15,10 @@ class RabbitMQServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        $this->app->singleton(RabbitMQ::class, function () {
+            return new RabbitMQ();
+        });
+        
         $this->mergeConfigFrom(__DIR__ . '/../config/services.php', 'services');
         $this->loadRoutesFrom(__DIR__ . '/../routes/topics.php');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
@@ -23,9 +28,5 @@ class RabbitMQServiceProvider extends ServiceProvider
                 RabbitMQCommand::class,
             ]);
         }
-
-//        $this->app->singleton(RabbitMQ::class, function () {
-//            return new RabbitMQ();
-//        });
     }
 }

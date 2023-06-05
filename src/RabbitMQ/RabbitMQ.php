@@ -25,7 +25,7 @@ class RabbitMQ
     /**
      * @var int $deliveryMode
      */
-//    private int $deliveryMode = AMQPMessage::DELIVERY_MODE_PERSISTENT;
+    private int $deliveryMode = AMQPMessage::DELIVERY_MODE_PERSISTENT;
 
     /**
      * @var array $routes
