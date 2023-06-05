@@ -22,7 +22,7 @@
                 "Channext\\ChannextRabbitmq\\Providers\\RabbitMQServiceProvider"
             ],
             "aliases": {
-                "RabbitMQ": "Channext\\ChannextRabbitmq\\Facades\\RabbitMQFacade"
+                "RabbitMQ": "Channext\\ChannextRabbitmq\\Facades\\RabbitMQ"
             }
         }
     }
