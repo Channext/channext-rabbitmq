@@ -15,12 +15,12 @@ class RabbitMQ
     /**
      * @var ?AMQPStreamConnection $connection
      */
-    private ?AMQPStreamConnection $connection;
+    private ?AMQPStreamConnection $connection = null;
 
     /**
      * @var ?AMQPChannel $channel
      */
-    private ?AMQPChannel $channel;
+    private ?AMQPChannel $channel = null;
 
     /**
      * @var int $deliveryMode
