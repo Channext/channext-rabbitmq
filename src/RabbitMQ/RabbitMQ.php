@@ -47,8 +47,8 @@ class RabbitMQ
                 password: config('services.rabbitmq.password')
             );
             $this->channel = $this->connection?->channel();
-            $this->channel?->exchange_declare(exchange: config('services.rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel?->queue_declare(queue: config('services.rabbitmq.queue'), durable: true, auto_delete: false);
+            $this->channel->exchange_declare(exchange: config('services.rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
+            $this->channel->queue_declare(queue: config('services.rabbitmq.queue'), durable: true, auto_delete: false);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
@@ -60,8 +60,8 @@ class RabbitMQ
     public function __destruct()
     {
         try {
-//            $this->channel?->close();
-//            $this->connection?->close();
+            $this->channel?->close();
+            $this->connection?->close();
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
@@ -80,7 +80,7 @@ class RabbitMQ
             $this->routes[$route] = $this->createAction(callback: $callback);
 
             try {
-                $this->channel->queue_bind(queue: config('services.rabbitmq.queue'), exchange: config('services.rabbitmq.exchange'), routing_key: $route);
+                $this->channel?->queue_bind(queue: config('services.rabbitmq.queue'), exchange: config('services.rabbitmq.exchange'), routing_key: $route);
             } catch (\Exception $e) {
                 \Sentry\captureException($e);
             }
@@ -95,8 +95,8 @@ class RabbitMQ
     public function consume()
     {
         try {
-            $this->channel->basic_consume(queue: config('services.rabbitmq.queue'), callback: [$this, 'callback']);
-            $this->channel->consume();
+            $this->channel?->basic_consume(queue: config('services.rabbitmq.queue'), callback: [$this, 'callback']);
+            $this->channel?->consume();
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
@@ -117,7 +117,7 @@ class RabbitMQ
 
         try {
             $message = $this->createMessage(body: $body);
-            $this->channel->basic_publish(msg: $message, exchange: config('services.rabbitmq.exchange'), routing_key: $routingKey);
+            $this->channel?->basic_publish(msg: $message, exchange: config('services.rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
             return;
