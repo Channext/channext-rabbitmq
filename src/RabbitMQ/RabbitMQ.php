@@ -15,12 +15,12 @@ class RabbitMQ
     /**
      * @var ?AMQPStreamConnection $connection
      */
-    private ?AMQPStreamConnection $connection = null;
+    private ?AMQPStreamConnection $connection;
 
     /**
      * @var ?AMQPChannel $channel
      */
-    private ?AMQPChannel $channel = null;
+    private ?AMQPChannel $channel;
 
     /**
      * @var int $deliveryMode
@@ -60,8 +60,8 @@ class RabbitMQ
     public function __destruct()
     {
         try {
-            $this->channel?->close();
-            $this->connection?->close();
+//            $this->channel?->close();
+//            $this->connection?->close();
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
