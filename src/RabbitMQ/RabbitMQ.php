@@ -47,8 +47,8 @@ class RabbitMQ
                 password: config('services.rabbitmq.password')
             );
             $this->channel = $this->connection?->channel();
-            $this->channel->exchange_declare(exchange: config('services.rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel->queue_declare(queue: config('services.rabbitmq.queue'), durable: true, auto_delete: false);
+            $this->channel?->exchange_declare(exchange: config('services.rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
+            $this->channel?->queue_declare(queue: config('services.rabbitmq.queue'), durable: true, auto_delete: false);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
