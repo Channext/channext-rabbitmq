@@ -18,7 +18,7 @@ class RabbitMQServiceProvider extends ServiceProvider
         $this->app->singleton(RabbitMQ::class, function () {
             return new RabbitMQ();
         });
-        
+
         $this->mergeConfigFrom(__DIR__ . '/../config/services.php', 'services');
         $this->loadRoutesFrom(__DIR__ . '/../routes/topics.php');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
