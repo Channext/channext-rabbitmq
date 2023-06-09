@@ -13,14 +13,32 @@ class RabbitMQServiceProvider extends ServiceProvider
      *
      * @return void
      */
-    public function boot()
+    public function register()
     {
         $this->app->singleton(RabbitMQ::class, function () {
             return new RabbitMQ();
         });
+    }
 
-        $this->mergeConfigFrom(__DIR__ . '/../config/services.php', 'services');
-        $this->loadRoutesFrom(__DIR__ . '/../routes/topics.php');
+    /**
+     * Register any events for your application.
+     *
+     * @return void
+     */
+    public function boot()
+    {
+        $this->publishes([
+            __DIR__ . '/../config/rabbitmq.php' => config_path('rabbitmq.php'),
+        ]);
+
+        $this->publishes([
+            __DIR__ . '/../routes/topics.php' => base_path('routes/topics.php'),
+        ]);
+
+        if (file_exists(base_path('routes/topics.php'))) {
+            require base_path('routes/topics.php');
+        }
+
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
         if ($this->app->runningInConsole()) {

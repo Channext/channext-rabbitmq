@@ -15,12 +15,12 @@ class RabbitMQ
     /**
      * @var ?AMQPStreamConnection $connection
      */
-    private ?AMQPStreamConnection $connection;
+    private ?AMQPStreamConnection $connection = null;
 
     /**
      * @var ?AMQPChannel $channel
      */
-    private ?AMQPChannel $channel;
+    private ?AMQPChannel $channel = null;
 
     /**
      * @var int $deliveryMode
@@ -41,14 +41,14 @@ class RabbitMQ
     {
         try {
             $this->connection = new AMQPStreamConnection(
-                host: config('services.rabbitmq.host'),
-                port: config('services.rabbitmq.port'),
-                user: config('services.rabbitmq.user'),
-                password: config('services.rabbitmq.password')
+                host: config('rabbitmq.host'),
+                port: config('rabbitmq.port'),
+                user: config('rabbitmq.user'),
+                password: config('rabbitmq.password')
             );
             $this->channel = $this->connection?->channel();
-            $this->channel?->exchange_declare(exchange: config('services.rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel?->queue_declare(queue: config('services.rabbitmq.queue'), durable: true, auto_delete: false);
+            $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
+            $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
@@ -80,7 +80,7 @@ class RabbitMQ
             $this->routes[$route] = $this->createAction(callback: $callback);
 
             try {
-                $this->channel?->queue_bind(queue: config('services.rabbitmq.queue'), exchange: config('services.rabbitmq.exchange'), routing_key: $route);
+                $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
             } catch (\Exception $e) {
                 \Sentry\captureException($e);
             }
@@ -95,7 +95,7 @@ class RabbitMQ
     public function consume()
     {
         try {
-            $this->channel?->basic_consume(queue: config('services.rabbitmq.queue'), callback: [$this, 'callback']);
+            $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
             $this->channel?->consume();
         } catch (\Exception $e) {
             \Sentry\captureException($e);
@@ -117,7 +117,7 @@ class RabbitMQ
 
         try {
             $message = $this->createMessage(body: $body);
-            $this->channel?->basic_publish(msg: $message, exchange: config('services.rabbitmq.exchange'), routing_key: $routingKey);
+            $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
             return;

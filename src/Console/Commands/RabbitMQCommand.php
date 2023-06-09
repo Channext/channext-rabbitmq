@@ -2,8 +2,8 @@
 
 namespace Channext\ChannextRabbitmq\Console\Commands;
 
-use Channext\ChannextRabbitmq\Facades\RabbitMQ;
 use Illuminate\Console\Command;
+use Channext\ChannextRabbitmq\Facades\RabbitMQ;
 
 class RabbitMQCommand extends Command
 {
