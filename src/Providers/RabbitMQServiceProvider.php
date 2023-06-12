@@ -28,11 +28,15 @@ class RabbitMQServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->publishes([
-            __DIR__ . '/../config/rabbitmq.php' => config_path('rabbitmq.php'),
+            __DIR__ . '/../config/rabbitmq.php' => base_path('config/rabbitmq.php'),
         ]);
 
         $this->publishes([
             __DIR__ . '/../routes/topics.php' => base_path('routes/topics.php'),
+        ]);
+
+        $this->publishes([
+            __DIR__ . '/../Models/Message.php' => base_path('app/Models/Message.php'),
         ]);
 
         if (file_exists(base_path('routes/topics.php'))) {

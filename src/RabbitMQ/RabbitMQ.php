@@ -106,13 +106,11 @@ class RabbitMQ
      * Publish message
      *
      * @param $body
-     * @param $object
-     * @param $operation
+     * @param $routingKey
      * @return void
      */
-    public function publish($body, $object, $operation)
+    public function publish($body, $routingKey)
     {
-        $routingKey = "$object.$operation";
         $model = $this->createModel(body: $body, routingKey: $routingKey);
 
         try {
