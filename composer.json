@@ -11,7 +11,7 @@
         }
     },
     "require": {
-        "illuminate/support": "^9.52",
+        "illuminate/support": "^8.0",
         "php-amqplib/php-amqplib": "^3.5",
         "sentry/sentry": "^3.19",
         "symfony/http-client": "^6.0",
