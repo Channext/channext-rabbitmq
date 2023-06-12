@@ -17,7 +17,7 @@ return [
     */
 
     'host' => env('RABBITMQ_HOST', 'rabbitmq'),
-    'port' => env('RABBITMQ_PORT', 15672),
+    'port' => env('RABBITMQ_PORT', 5672),
     'user' => env('RABBITMQ_USER', 'local'),
     'password' => env('RABBITMQ_PASSWORD', 'rabbit'),
     'exchange' => env('RABBITMQ_EXCHANGE', 'events_stream'),
