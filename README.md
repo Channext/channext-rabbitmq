@@ -4,7 +4,7 @@ The Channext x RabbitMQ integration is a package to simplify the publishing and 
 **Installation**
 1. Since this package is (for now) private you should first add the following code to your composer.json:<br>
 `"repositories": [{"type": "git","url": "https://github.com/Channext/channext-rabbitmq"}]`
-2. Run `composer require channext/channext-rabbitmq` in the root of your project
+2. Run `composer require channext/channext-rabbitmq --with-all-dependencies` in the root of your project
 3. **Lumen only:** add the following line under the Service Providers in the bootstrap/app.php file:<br> 
 `$app->register(Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider::class);`
 4. Run `php artisan vendor:publish` and choose the option "Provider: Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider"
