@@ -36,7 +36,7 @@ class RabbitMQServiceProvider extends ServiceProvider
         ]);
 
         $this->publishes([
-            __DIR__ . '/../Models/Message.php' => base_path('app/Models/Message.php'),
+            __DIR__ . '/../Models/Message.php' => app_path('Models/Message.php'),
         ]);
 
         if (file_exists(base_path('routes/topics.php'))) {
