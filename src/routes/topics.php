@@ -1,5 +1,7 @@
 <?php
 
+use Channext\ChannextRabbitmq\Facades\RabbitMQ;
+
 /*
 |--------------------------------------------------------------------------
 | Topic Channels
