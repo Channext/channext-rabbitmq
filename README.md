@@ -30,3 +30,6 @@ To start consuming messages you should update the routes/topics.php file with al
 `RabbitMQ::route('user.login', 'Controller@test');`<br>
 This route would only listen to messages with a routing key "user.login" and would execute the "test"-method in the controller.
 
+The functions in the controllers called by the router should always accept the message as the first parameter:<br>
+`public function test(AMQPMessage $message) { $messageBody = json_decode($message->getBody(), true) }`
+
