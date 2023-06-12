@@ -4,18 +4,18 @@ The Channext x RabbitMQ integration is a package to simplify the publishing and 
 **Installation**
 1. Since this package is (for now) private you should first add the following code to your composer.json:<br>
 `"repositories": [{"type": "git","url": "https://github.com/Channext/channext-rabbitmq"}]`
-2. Run "composer require channext/channext-rabbitmq" in the root of your project
+2. Run `composer require channext/channext-rabbitmq` in the root of your project
 3. **Lumen only:** add the following line under the Service Providers in the bootstrap/app.php file:<br> 
 `$app->register(Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider::class);`
-4. Run "php artisan vendor:publish" and choose the option "Provider: Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider"
+4. Run `php artisan vendor:publish` and choose the option "Provider: Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider"
 5. **Lumen only:** add the following line under the Config Files in the bootstrap/app.php file:<br>
 `$app->configure('rabbitmq');`
 6. Add the correct RabbitMQ credentials to your .env file (see config/rabbitmq.php for the available variables)
-7. **Laravel only:** Run "php artisan config:cache"
-8. Run "php artisan cache:clear"
-9. Run "php artisan migrate"
+7. **Laravel only:** Run `php artisan config:cache`
+8. Run `php artisan cache:clear`
+9. Run `php artisan migrate`
 10. Update the routes/topics.php file with the routes you want to listen to 
-11. Run "php artisan rabbitmq:consume" to start consuming messages
+11. Run `php artisan rabbitmq:consume` to start consuming messages
 
 **Examples**
 
