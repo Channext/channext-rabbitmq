@@ -3,7 +3,7 @@
     "description": "The RabbitMQ integration for Channext services",
     "type": "package",
     "license": "proprietary",
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "version": "1.0.0",
     "autoload": {
         "psr-4": {
