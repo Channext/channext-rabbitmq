@@ -8,14 +8,15 @@ The Channext x RabbitMQ integration is a package to simplify the publishing and 
 3. **Lumen only:** add the following line under the Service Providers in the bootstrap/app.php file:<br> 
 `$app->register(Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider::class);`
 4. **Laravel only:** Run `php artisan vendor:publish` and choose the option "Provider: Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider"
-5. **Lumen only:** add the following line under the Config Files in the bootstrap/app.php file:<br>
+5. **Lumen only:** move `vendor/channext/channext-rabbitmq/src/config/rabbitmq.php` to `/config` and then move `vendor/channext/channext-rabbitmq/src/routes/topics.php` to `/routes`
+6. **Lumen only:** add the following line under the Config Files in the bootstrap/app.php file:<br>
 `$app->configure('rabbitmq');`
-6. Add the correct RabbitMQ credentials to your .env file (see config/rabbitmq.php for the available variables)
-7. **Laravel only:** Run `php artisan config:cache`
-8. Run `php artisan cache:clear`
-9. Run `php artisan migrate`
-10. Update the routes/topics.php file with the routes you want to listen to 
-11. Run `php artisan rabbitmq:consume` to start consuming messages
+7. Add the correct RabbitMQ credentials to your .env file (see config/rabbitmq.php for the available variables)
+8. **Laravel only:** Run `php artisan config:cache`
+9. Run `php artisan cache:clear`
+10. Run `php artisan migrate`
+11. Update the routes/topics.php file with the routes you want to listen to 
+12. Run `php artisan rabbitmq:consume` to start consuming messages
 
 **Examples**
 
