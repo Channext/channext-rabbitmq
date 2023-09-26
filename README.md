@@ -11,7 +11,7 @@ The Channext x RabbitMQ integration is a package to simplify the publishing and 
 5. **Lumen only:** move `vendor/channext/channext-rabbitmq/src/config/rabbitmq.php` to `/config` and then move `vendor/channext/channext-rabbitmq/src/routes/topics.php` to `/routes`
 6. **Lumen only:** add the following line under the Config Files in the bootstrap/app.php file:<br>
 `$app->configure('rabbitmq');`
-7. Add the correct RabbitMQ credentials to your .env file (see config/rabbitmq.php for the available variables)
+7. Add the correct RabbitMQ credentials to your .env file (see config/rabbitmq.php for the available variables. Also be sure to use different queue names for different services, otherwise only one service will act on the event other ones will miss it.)
 8. **Laravel only:** Run `php artisan config:cache`
 9. Run `php artisan cache:clear`
 10. Run `php artisan migrate`
