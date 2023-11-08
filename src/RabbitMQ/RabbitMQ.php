@@ -5,6 +5,7 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 use Channext\ChannextRabbitmq\Models\Message;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -48,7 +49,7 @@ class RabbitMQ
             );
             $this->channel = $this->connection?->channel();
             $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false);
+            $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, arguments: ['x-max-priority' => array('I', 5)]);
         } catch (\Exception $e) {
             \Sentry\captureException($e);
         }
@@ -98,6 +99,7 @@ class RabbitMQ
             $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
             $this->channel?->consume();
         } catch (\Exception $e) {
+            Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             \Sentry\captureException($e);
         }
     }
@@ -132,7 +134,7 @@ class RabbitMQ
      */
     public function callback($message)
     {
-        $route = $message->delivery_info['routing_key'] ?? '';
+        $route = json_decode($message->body, true)['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
         $action = $this->routes[$route] ?? [];
         if (!empty($action['controller']) && !empty($action['method'])) {
             return $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message);
@@ -185,8 +187,27 @@ class RabbitMQ
     protected function createCallback($controller, $method, $message)
     {
         if (method_exists(object_or_class: $controller, method: $method)) {
-            $controller->$method($message);
-            $this->acknowledgeMessage($message);
+            $retry = false;
+            try {
+                $controller->$method($message);
+            } catch (\Exception $e) {
+                $data = json_decode($message->getBody(), true);
+                $data['x-routing-key'] = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+                $retry = ($data['x-retry-count'] ?? 0) > 0;
+                Log::info($retry ? 'retrying' : 'not retrying');
+                if ($retry) {
+                    Log::info('NAck');
+                    $message->nack(requeue: true);
+                }
+                else {
+                    $data['x-retry-count'] = ($data['x-retry-count'] ?? 0) + 1;
+                    $newMessage = $this->createMessage(body: $data, priority: 1);
+                    Log::info('creating new message');
+                    $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
+                }
+                \Sentry\captureException($e);
+            }
+            if (!$retry) $this->acknowledgeMessage($message);
         }
     }
 
@@ -196,10 +217,11 @@ class RabbitMQ
      * @param $body
      * @return AMQPMessage
      */
-    protected function createMessage($body)
+    protected function createMessage($body, $priority = 2)
     {
         return new AMQPMessage(body: json_encode($body), properties: [
             'delivery_mode' => $this->deliveryMode,
+            'priority' => $priority
         ]);
     }
 
