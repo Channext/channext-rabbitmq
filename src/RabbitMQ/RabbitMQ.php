@@ -10,6 +10,7 @@ use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use Illuminate\Support\Facades\Schema;
+use function Sentry\captureException;
 
 class RabbitMQ
 {
@@ -51,7 +52,7 @@ class RabbitMQ
             $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
             $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, arguments: ['x-max-priority' => array('I', 5)]);
         } catch (\Exception $e) {
-            \Sentry\captureException($e);
+            captureException($e);
         }
     }
 
@@ -64,7 +65,7 @@ class RabbitMQ
             $this->channel?->close();
             $this->connection?->close();
         } catch (\Exception $e) {
-            \Sentry\captureException($e);
+            captureException($e);
         }
     }
 
@@ -83,7 +84,7 @@ class RabbitMQ
             try {
                 $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
             } catch (\Exception $e) {
-                \Sentry\captureException($e);
+                captureException($e);
             }
         }
     }
@@ -100,7 +101,7 @@ class RabbitMQ
             $this->channel?->consume();
         } catch (\Exception $e) {
             Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
-            \Sentry\captureException($e);
+            captureException($e);
         }
     }
 
@@ -119,7 +120,7 @@ class RabbitMQ
             $message = $this->createMessage(body: $body);
             $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
-            \Sentry\captureException($e);
+            captureException($e);
             return;
         }
 
@@ -191,21 +192,7 @@ class RabbitMQ
             try {
                 $controller->$method($message);
             } catch (\Exception $e) {
-                $data = json_decode($message->getBody(), true);
-                $data['x-routing-key'] = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
-                $retry = ($data['x-retry-count'] ?? 0) > 0;
-                Log::info($retry ? 'retrying' : 'not retrying');
-                if ($retry) {
-                    Log::info('NAck');
-                    $message->nack(requeue: true);
-                }
-                else {
-                    $data['x-retry-count'] = ($data['x-retry-count'] ?? 0) + 1;
-                    $newMessage = $this->createMessage(body: $data, priority: 1);
-                    Log::info('creating new message');
-                    $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
-                }
-                \Sentry\captureException($e);
+                $retry = $this->onFail($message, $e);
             }
             if (!$retry) $this->acknowledgeMessage($message);
         }
@@ -269,7 +256,37 @@ class RabbitMQ
         try {
             $message->ack();
         } catch (\Exception $e) {
-            \Sentry\captureException($e);
+            captureException($e);
         }
+    }
+
+    /**
+     * @param $message
+     * @param Exception $e
+     * @return bool
+     */
+    private function onFail($message, Exception $e): bool
+    {
+        $data = json_decode($message->getBody(), true);
+        $data['x-routing-key'] = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+        $retry = ($data['x-retry-count'] ?? 0) > 0;
+        Log::info($retry ? 'retrying' : 'not retrying');
+        if ($retry) {
+            Log::info('NAck');
+            $message->nack(requeue: true);
+
+        } else {
+            $data['x-retry-count'] = ($data['x-retry-count'] ?? 0) + 1;
+            $newMessage = $this->createMessage(body: $data, priority: 1);
+            Log::info('creating new message');
+            $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
+
+            \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data): void {
+                Log::info('Sentry withScope');
+                $scope->setContext('EventData', $data);
+                captureException($e);
+            });
+        }
+        return $retry;
     }
 }
