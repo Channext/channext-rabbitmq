@@ -76,7 +76,7 @@ class RabbitMQ
      * @param $callback
      * @return void
      */
-    public function route($route, $callback, $requeue = false, $expiresIn = 60)
+    public function route($route, $callback, $requeue = false, $expiresIn = 0)
     {
         if (!array_key_exists($route, $this->routes)) {
             $this->routes[$route] = [$this->createAction(callback: $callback), $requeue, $expiresIn];
