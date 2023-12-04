@@ -5,6 +5,9 @@ namespace Channext\ChannextRabbitmq\Facades;
 use Illuminate\Support\Facades\Facade;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
 
+/**
+ * @method static void route(string $topic, string $callback, int $expiresIn = 0)
+ **/
 class RabbitMQ extends Facade
 {
     /**

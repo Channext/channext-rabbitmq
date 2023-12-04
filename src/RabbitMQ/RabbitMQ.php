@@ -76,10 +76,10 @@ class RabbitMQ
      * @param $callback
      * @return void
      */
-    public function route($route, $callback)
+    public function route($route, $callback, $requeue = false, $expiresIn = 60)
     {
         if (!array_key_exists($route, $this->routes)) {
-            $this->routes[$route] = $this->createAction(callback: $callback);
+            $this->routes[$route] = [$this->createAction(callback: $callback), $requeue, $expiresIn];
 
             try {
                 $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
@@ -136,9 +136,9 @@ class RabbitMQ
     public function callback($message)
     {
         $route = json_decode($message->body, true)['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
-        $action = $this->routes[$route] ?? [];
+        [$action, $expiresIn] = $this->routes[$route] ?? [];
         if (!empty($action['controller']) && !empty($action['method'])) {
-            return $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message);
+            return $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
         }
     }
 
@@ -185,14 +185,14 @@ class RabbitMQ
      * @param $method
      * @return mixed
      */
-    protected function createCallback($controller, $method, $message)
+    protected function createCallback($controller, $method, $message, $expiresIn = 0)
     {
         if (method_exists(object_or_class: $controller, method: $method)) {
             $retry = false;
             try {
                 $controller->$method($message);
             } catch (\Exception $e) {
-                $retry = $this->onFail($message, $e);
+                $retry = $this->onFail($message, $e, $expiresIn);
             }
             if (!$retry) $this->acknowledgeMessage($message);
         }
@@ -206,6 +206,8 @@ class RabbitMQ
      */
     protected function createMessage($body, $priority = 2)
     {
+        // add timestamp to message
+        if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
         return new AMQPMessage(body: json_encode($body), properties: [
             'delivery_mode' => $this->deliveryMode,
             'priority' => $priority
@@ -265,28 +267,31 @@ class RabbitMQ
      * @param Exception $e
      * @return bool
      */
-    private function onFail($message, Exception $e): bool
+    private function onFail($message, Exception $e, int $expiresIn = 0): bool
     {
         $data = json_decode($message->getBody(), true);
         $data['x-routing-key'] = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
-        $retry = ($data['x-retry-count'] ?? 0) > 0;
-        Log::info($retry ? 'retrying' : 'not retrying');
-        if ($retry) {
-            Log::info('NAck');
+        $retry = $data['x-retry-state'] ?? false;
+        $requeue = $expiresIn > 0 && $expiresIn + ($data['x-published-at'] ?? 0) > time();
+        if ($retry && $requeue) {
             $message->nack(requeue: true);
 
-        } else {
-            $data['x-retry-count'] = ($data['x-retry-count'] ?? 0) + 1;
+        } else if ($requeue) {
+            $data['x-retry-state'] = true;
             $newMessage = $this->createMessage(body: $data, priority: 1);
-            Log::info('creating new message');
             $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
 
-            \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data): void {
-                Log::info('Sentry withScope');
-                $scope->setContext('EventData', $data);
-                captureException($e);
-            });
+            $this->captureExceptionWithScope($e, $data);
+        } else {
+            $this->captureExceptionWithScope($e, $data);
         }
-        return $retry;
+        return $retry && $requeue;
+    }
+
+    private function captureExceptionWithScope(Exception $e, array $data): void {
+        \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
+            $scope->setContext('EventData', $data);
+            captureException($e);
+        });
     }
 }
