@@ -12,7 +12,7 @@
     "require": {
         "illuminate/support": "^6|^7|^8|^9|^10",
         "php-amqplib/php-amqplib": "^3.5",
-        "sentry/sentry": "^3.19",
+        "sentry/sentry": "^4.0",
         "symfony/http-client": "^6.0",
         "nyholm/psr7": "^1.8"
     },
