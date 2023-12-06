@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Providers;
+namespace Channext\ChannextRabbitmq\Providers;
 
 use Channext\ChannextRabbitmq\Console\Commands\RabbitMQCommand;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ;
