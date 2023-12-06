@@ -2,8 +2,11 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use App\Models\User;
+use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\Models\Message;
 use Exception;
+use Illuminate\Foundation\Auth\User as AuthenticatableUser;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -33,6 +36,7 @@ class RabbitMQ
      * @var array $routes
      */
     private array $routes = [];
+    private \Closure|null $authUserCallback;
 
 
     /**
@@ -51,6 +55,7 @@ class RabbitMQ
             $this->channel = $this->connection?->channel();
             $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
             $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, arguments: ['x-max-priority' => array('I', 5)]);
+            $this->authUserCallback = null;
         } catch (\Exception $e) {
             captureException($e);
         }
@@ -135,11 +140,30 @@ class RabbitMQ
      */
     public function callback($message)
     {
-        $route = json_decode($message->body, true)['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+        $data = json_decode($message->body, true);
+        $route = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+        $this->setAuthUser($data);
         [$action, $expiresIn] = $this->routes[$route] ?? [];
         if (!empty($action['controller']) && !empty($action['method'])) {
             return $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
         }
+    }
+
+    protected function setAuthUser($messagePayload) : void {
+        if ($userDdata = $messagePayload['x-user'] ?? null) {
+            $user = app('EventAuth')->authUserCallback ? (app('EventAuth')->authUserCallback)($userDdata) : null;
+
+            if ($user) RabbitMQAuth::setUser($user);
+            else RabbitMQAuth::logout();
+
+        } else {
+            RabbitMQAuth::logout();
+        }
+    }
+
+    public function setAuthUserCallback(\Closure $callback) : void
+    {
+        $this->authUserCallback = $callback;
     }
 
     /**
@@ -208,7 +232,7 @@ class RabbitMQ
     {
         // add timestamp to message
         if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
-        $body = $this->setUserData($body);
+        if (!isset($body['x-user'])) $body = $this->setUserData($body);
         return new AMQPMessage(body: json_encode($body), properties: [
             'delivery_mode' => $this->deliveryMode,
             'priority' => $priority
@@ -217,15 +241,13 @@ class RabbitMQ
 
     protected function setUserData($body)
     {
-        $user = Auth::user();
-        $data = null;
-        if ($user) $data = [
+        $user = Auth::user() ?? RabbitMQAuth::user();
+        if ($user) $body['x-user'] = [
             'id' => $user->id,
             'type' => $user->type,
             'role' => $user->role,
             'org' => $user->vendor_id ?? $user->reseller_id ?? $user->distributor_id ?? $user->marketing_agency_id ?? null
         ];
-        $body['x-user'] = $body['x-user'] ?? $data;
         return $body;
     }
 
