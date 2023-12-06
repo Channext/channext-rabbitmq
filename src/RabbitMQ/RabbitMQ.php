@@ -208,10 +208,25 @@ class RabbitMQ
     {
         // add timestamp to message
         if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
+        $body = $this->setUserData($body);
         return new AMQPMessage(body: json_encode($body), properties: [
             'delivery_mode' => $this->deliveryMode,
             'priority' => $priority
         ]);
+    }
+
+    protected function setUserData($body)
+    {
+        $user = Auth::user();
+        $data = null;
+        if ($user) $data = [
+            'id' => $user->id,
+            'type' => $user->type,
+            'role' => $user->role,
+            'org' => $user->vendor_id ?? $user->reseller_id ?? $user->distributor_id ?? $user->marketing_agency_id ?? null
+        ];
+        $body['x-user'] = $body['x-user'] ?? $data;
+        return $body;
     }
 
     /**
