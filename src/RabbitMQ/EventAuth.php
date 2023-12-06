@@ -2,11 +2,11 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
-use Illuminate\Foundation\Auth\User as AuthenticatableUser;
+use Illuminate\Contracts\Auth\Authenticatable;
 
 class EventAuth
 {
-    public AuthenticatableUser|null $user;
+    public Authenticatable|null $user;
 
     public function __construct()
     {
@@ -14,13 +14,13 @@ class EventAuth
     }
 
     // set user
-    public function setUser(AuthenticatableUser $user) : void
+    public function setUser(Authenticatable $user) : void
     {
         $this->user = $user;
     }
 
     // login
-    public function login(AuthenticatableUser $user, bool $remember = false) : void
+    public function login(Authenticatable $user, bool $remember = false) : void
     {
         if ($remember) throw new \Exception('Not implemented');
     }
@@ -32,7 +32,7 @@ class EventAuth
     }
 
     // get user
-    public function user(): AuthenticatableUser|null
+    public function user(): Authenticatable|null
     {
         return $this->user;
     }

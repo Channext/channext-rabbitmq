@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static bool guest()
  * @method static \Illuminate\Contracts\Auth\Authenticatable|null user()
  * @method static int|string|null id()
- * @method static void setUser(\Illuminate\Contracts\Auth\Authenticatable $user)
+ * @method static void setUser(\Illuminate\Contracts\Auth\Authenticatable| $user)
  * @method static void login(\Illuminate\Contracts\Auth\Authenticatable $user, bool $remember = false)
  * @method static void logout()
  **/
