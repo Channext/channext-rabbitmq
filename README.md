@@ -30,7 +30,7 @@ To publish a message simply use the publish method in the RabbitMQ facade:<br>
 Where the body parameter is the data that you want to send and the routing key is the route that consumers can listen to. E.g. the moment a user is created the body should contain all the user data and the routing key could be "user.created".
 
 To start consuming messages you should update the routes/topics.php file with all the routing keys you want your service to listen to. This is actually very similar to the way Laravel usually handles routing: <br>
-`RabbitMQ::route('user.login', 'Controller@test');`<br>
+`RabbitMQ::route('user.login', 'Controller@test', expiresAt: 0);`<br>
 This route would only listen to messages with a routing key "user.login" and would execute the "test"-method in the controller.
 
 The functions in the controllers called by the router should always accept the message as the first parameter:<br>
