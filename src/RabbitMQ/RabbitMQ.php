@@ -5,6 +5,7 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 use App\Models\User;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\Models\Message;
+use Closure;
 use Exception;
 use Illuminate\Foundation\Auth\User as AuthenticatableUser;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +37,7 @@ class RabbitMQ
      * @var array $routes
      */
     private array $routes = [];
-    private \Closure|null $authUserCallback;
+    private Closure|null $authUserCallback;
 
 
     /**
@@ -75,16 +76,17 @@ class RabbitMQ
     }
 
     /**
-     * Define routing key and bind to queue
+     * Define routing key and bind it to a queue
      *
-     * @param $route
-     * @param $callback
+     * @param string $route
+     * @param string $callback
+     * @param int $expiresIn
      * @return void
      */
-    public function route($route, $callback, $requeue = false, $expiresIn = 0)
+    public function route(string $route, string $callback, int $expiresIn = 0) : void
     {
         if (!array_key_exists($route, $this->routes)) {
-            $this->routes[$route] = [$this->createAction(callback: $callback), $requeue, $expiresIn];
+            $this->routes[$route] = [$this->createAction(callback: $callback), $expiresIn];
 
             try {
                 $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
@@ -99,13 +101,14 @@ class RabbitMQ
      *
      * @return void
      */
-    public function consume()
+    public function consume() : void
     {
         try {
             $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
             $this->channel?->consume();
         } catch (\Exception $e) {
             Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            RabbitMQAuth::logout();
             captureException($e);
         }
     }
@@ -117,7 +120,7 @@ class RabbitMQ
      * @param $routingKey
      * @return void
      */
-    public function publish($body, $routingKey)
+    public function publish(array $body, string $routingKey) : void
     {
         $model = $this->createModel(body: $body, routingKey: $routingKey);
 
@@ -135,33 +138,48 @@ class RabbitMQ
     /**
      * Call route
      *
-     * @param $message
-     * @return mixed
+     * @param AMQPMessage $message
+     * @return void
      */
-    public function callback($message)
+    public function callback(AMQPMessage $message) : void
     {
         $data = json_decode($message->body, true);
-        $route = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+        $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
         $this->setAuthUser($data);
         [$action, $expiresIn] = $this->routes[$route] ?? [];
         if (!empty($action['controller']) && !empty($action['method'])) {
-            return $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
+            $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
         }
+        RabbitMQAuth::logout();
     }
 
+    /**
+     * Set auth user
+     * uses x-user field in the message body to set the auth user
+     *
+     * @param array $messagePayload
+     * @return void
+     */
     protected function setAuthUser($messagePayload) : void {
-        if ($userDdata = $messagePayload['x-user'] ?? null) {
-            $user = app('EventAuth')->authUserCallback ? (app('EventAuth')->authUserCallback)($userDdata) : null;
+        $user = null;
+        if ($userData = $messagePayload['x-user'] ?? null) {
+            $authUserCallback = app('EventAuth')?->authUserCallback;
+            $user = $authUserCallback ? $authUserCallback($userData) : null;
 
             if ($user) RabbitMQAuth::setUser($user);
-            else RabbitMQAuth::logout();
-
-        } else {
-            RabbitMQAuth::logout();
         }
+        if (!$user) RabbitMQAuth::logout();
     }
 
-    public function setAuthUserCallback(\Closure $callback) : void
+    /**
+     * Set auth user callback
+     *
+     * This will use the implementation in EventAuthServiceProvider
+     *
+     * @param Closure $callback
+     * @return void
+     */
+    public function setAuthUserCallback(Closure $callback) : void
     {
         $this->authUserCallback = $callback;
     }
@@ -172,7 +190,7 @@ class RabbitMQ
      * @param $callback
      * @return array
      */
-    protected function createAction($callback)
+    protected function createAction(string $callback) : array
     {
         $action = [];
         if (str_contains($callback, '@')) {
@@ -186,10 +204,10 @@ class RabbitMQ
     /**
      * Create controller instance
      *
-     * @param $controller
-     * @return string
+     * @param mixed $controller
+     * @return mixed
      */
-    protected function createController($controller)
+    protected function createController(mixed $controller) : mixed
     {
         if (class_exists($controller)) {
             return app($controller);
@@ -205,11 +223,13 @@ class RabbitMQ
     /**
      * Call action
      *
-     * @param $controller
-     * @param $method
-     * @return mixed
+     * @param mixed $controller
+     * @param mixed $method
+     * @param AMQPMessage $message
+     * @param int $expiresIn
+     * @return void
      */
-    protected function createCallback($controller, $method, $message, $expiresIn = 0)
+    protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, int $expiresIn = 0) : void
     {
         if (method_exists(object_or_class: $controller, method: $method)) {
             $retry = false;
@@ -225,10 +245,11 @@ class RabbitMQ
     /**
      * Create message
      *
-     * @param $body
+     * @param array $body
+     * @param int $priority
      * @return AMQPMessage
      */
-    protected function createMessage($body, $priority = 2)
+    protected function createMessage(array $body, int $priority = 2) : AMQPMessage
     {
         // add timestamp to message
         if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
@@ -239,7 +260,17 @@ class RabbitMQ
         ]);
     }
 
-    protected function setUserData($body)
+    /**
+     * Set user data in the message body
+     *
+     * The user data in the message body will be used to set the auth user when this event is consumed
+     * x-user field will be set in the message body using either the current auth user from the api call or the user
+     * from the message payload.
+     *
+     * @param array $body
+     * @return array
+     */
+    protected function setUserData(array $body) : array
     {
         $user = Auth::user() ?? RabbitMQAuth::user();
         if ($user) $body['x-user'] = [
@@ -254,11 +285,11 @@ class RabbitMQ
     /**
      * Create model for message
      *
-     * @param $body
-     * @param $routingKey
-     * @return Message
+     * @param array $body
+     * @param string $routingKey
+     * @return Message|null
      */
-    protected function createModel($body, $routingKey)
+    protected function createModel(array $body, string $routingKey) : ?Message
     {
         if (Schema::hasTable('messages')) {
             return Message::create([
@@ -267,7 +298,7 @@ class RabbitMQ
                 'routing_key' => $routingKey,
                 'body' => $body
             ]);
-        }
+        } return null;
     }
 
     /**
@@ -276,7 +307,7 @@ class RabbitMQ
      * @param $model
      * @return void
      */
-    protected function publishMessage($model)
+    protected function publishMessage($model) : void
     {
         if ($model) {
             $model->published = true;
@@ -287,10 +318,10 @@ class RabbitMQ
     /**
      * Acknowledge message
      *
-     * @param $message
+     * @param AMQPMessage $message
      * @return void
      */
-    protected function acknowledgeMessage($message)
+    protected function acknowledgeMessage(AMQPMessage $message) : void
     {
         try {
             $message->ack();
@@ -300,14 +331,15 @@ class RabbitMQ
     }
 
     /**
-     * @param $message
+     * @param AMQPMessage $message
      * @param Exception $e
+     * @param int $expiresIn
      * @return bool
      */
-    private function onFail($message, Exception $e, int $expiresIn = 0): bool
+    private function onFail(AMQPMessage $message, Exception $e, int $expiresIn = 0): bool
     {
         $data = json_decode($message->getBody(), true);
-        $data['x-routing-key'] = $data['x-routing-key'] ?? $message->delivery_info['routing_key'] ?? '';
+        $data['x-routing-key'] = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
         $retry = $data['x-retry-state'] ?? false;
         $requeue = $expiresIn > 0 && $expiresIn + ($data['x-published-at'] ?? 0) > time();
         if ($retry && $requeue) {
@@ -325,6 +357,12 @@ class RabbitMQ
         return $retry && $requeue;
     }
 
+    /**
+     * Captures exception and adds event data to the scope
+     *
+     * @param Exception $e
+     * @param array $data
+     */
     private function captureExceptionWithScope(Exception $e, array $data): void {
         \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
             $scope->setContext('EventData', $data);
