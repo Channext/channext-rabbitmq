@@ -8,7 +8,7 @@ The Channext x RabbitMQ integration is a package to simplify the publishing and 
 3.**Lumen only:** also this of you want to use RabbitMQAuth facade:<br> 
 `$app->register(Channext\ChannextRabbitmq\Providers\EventAuthServiceProvider::class);`
 4. **Laravel only:** Run `php artisan vendor:publish` and choose the option "Provider: Channext\ChannextRabbitmq\Providers\RabbitMQServiceProvider"
-5. **Laravel only:** Run `php artisan vendor:publish` if you want to use RabbitMQAuth facade choose the option "Provider: Channext\ChannextRabbitmq\Providers\EventAuthServiceProvider"
+5. **Laravel only:** if you want to use RabbitMQAuth facade and run `php artisan vendor:publish` then choose the option "Provider: Channext\ChannextRabbitmq\Providers\EventAuthServiceProvider"
 6. Implement your logic inside EventAuthServiceProvider boot()
 7. **Lumen only:** move `vendor/channext/channext-rabbitmq/src/config/rabbitmq.php` to `/config` and then move `vendor/channext/channext-rabbitmq/src/routes/topics.php` to `/routes`
 8. **Lumen only:** add the following line under the Config Files in the bootstrap/app.php file:<br>
