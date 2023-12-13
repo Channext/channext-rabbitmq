@@ -213,7 +213,12 @@ class RabbitMQ
             return app($controller);
         }
 
-        $controller = "App\\Http\\Controllers\\$controller";
+        $controller = "App\\Amqp\\Controllers\\$controller";
+        if (class_exists(class: $controller)) {
+            return app($controller);
+        }
+
+        $controller = "App\\Http\\EventControllers\\$controller";
         if (class_exists(class: $controller)) {
             return app($controller);
         }
