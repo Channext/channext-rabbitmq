@@ -239,7 +239,7 @@ class RabbitMQ
         if (method_exists(object_or_class: $controller, method: $method)) {
             $retry = false;
             try {
-                $rabbitMessage = new RabbitMessage($message);
+                $rabbitMessage = new RabbitMQMessage($message);
                 $controller->$method($rabbitMessage, $message);
             } catch (\Exception $e) {
                 $retry = $this->onFail($message, $e, $expiresIn);
