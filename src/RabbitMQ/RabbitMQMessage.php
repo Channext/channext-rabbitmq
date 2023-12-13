@@ -2,9 +2,10 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
 
-class RabbitMessage extends AMQPMessage
+class RabbitMQMessage extends AMQPMessage
 {
     private array $decodedBody;
     private AMQPMessage $originalMessage;
@@ -14,8 +15,17 @@ class RabbitMessage extends AMQPMessage
             $message->getBody(),
             $message->get_properties()
         );
+        
         $this->originalMessage = $message;
         $this->decodedBody = json_decode($message->getBody(), true);
+    }
+    
+    /**
+     * @return AMQPMessage
+     */
+    public function getOriginalMessage() : AMQPMessage
+    {
+        return $this->originalMessage;
     }
 
     /**
@@ -53,7 +63,7 @@ class RabbitMessage extends AMQPMessage
      */
     public function get($key, $default = null) : mixed
     {
-        $data = $this->decodedBody['x-data'];
+        $data = $this->decodedBody['x-data'] ?? [];
         return $data[$key] ?? $default;
     }
 
@@ -87,5 +97,61 @@ class RabbitMessage extends AMQPMessage
     public function isRetried() : bool
     {
         return $this->decodedBody['x-retry-state'] ?? false;
+    }
+
+    /**
+     * @return int
+     */
+    public function getDeliveryTag() : int
+    {
+        return $this->originalMessage->getDeliveryTag();
+    }
+    
+    /**
+     * @return string
+     */
+    public function getConsumerTag() : string
+    {
+        return $this->originalMessage->getConsumerTag();
+    }
+    
+    /**
+     * @return bool
+     */
+    public function isRedelivered() : bool
+    {
+        return $this->originalMessage->isRedelivered();
+    }
+    
+    /**
+     * @return string
+     */
+    public function getExchange() : string
+    {
+        return $this->originalMessage->getExchange();
+    }
+    
+    /**
+     * @return int
+     */
+    public function getMessageCount() : int
+    {
+        return $this->originalMessage->getMessageCount();
+    }
+    
+    /**
+     * @return AMQPChannel
+     */
+    public function getChannel() : AMQPChannel
+    {
+        return $this->originalMessage->getChannel();
+    }
+    
+    /**
+     * @return array
+     */
+    public function getDeliveryInfo() : array
+    {
+        return $this->originalMessage->getDeliveryInfo();
     }
 }
