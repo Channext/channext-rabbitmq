@@ -125,7 +125,7 @@ class RabbitMQ
         $model = $this->createModel(body: $body, routingKey: $routingKey);
 
         try {
-            $message = $this->createMessage(body: $body);
+            $message = $this->createMessage(body: ['x-data' => $body]);
             $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
             captureException($e);
@@ -239,7 +239,8 @@ class RabbitMQ
         if (method_exists(object_or_class: $controller, method: $method)) {
             $retry = false;
             try {
-                $controller->$method($message);
+                $rabbitMessage = new RabbitMessage($message);
+                $controller->$method($rabbitMessage, $message);
             } catch (\Exception $e) {
                 $retry = $this->onFail($message, $e, $expiresIn);
             }
