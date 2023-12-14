@@ -116,16 +116,17 @@ class RabbitMQ
     /**
      * Publish message
      *
-     * @param $body
-     * @param $routingKey
+     * @param array $body
+     * @param string $routingKey
+     * @param string|int|null $identifier
      * @return void
      */
-    public function publish(array $body, string $routingKey) : void
+    public function publish(array $body, string $routingKey, string|int $identifier = null) : void
     {
         $model = $this->createModel(body: $body, routingKey: $routingKey);
 
         try {
-            $message = $this->createMessage(body: ['x-data' => $body]);
+            $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier]);
             $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
             captureException($e);
@@ -240,7 +241,7 @@ class RabbitMQ
             $retry = false;
             try {
                 $rabbitMessage = new RabbitMQMessage($message);
-                $controller->$method($rabbitMessage, $message);
+                $controller->$method($rabbitMessage, $rabbitMessage->identifier());
             } catch (\Exception $e) {
                 $retry = $this->onFail($message, $e, $expiresIn);
             }

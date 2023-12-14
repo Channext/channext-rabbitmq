@@ -2,6 +2,9 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use Channext\ChannextRabbitmq\Facades\RabbitMQ;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
 
@@ -73,6 +76,14 @@ class RabbitMQMessage extends AMQPMessage
     public function user() : ?array
     {
         return $this->decodedBody['x-user'] ?? null;
+    }
+
+    /**
+     * @return string|int|null
+     */
+    public function identifier() : string|int|null
+    {
+        return $this->decodedBody['x-identifier'] ?? null;
     }
 
     /**
@@ -153,5 +164,22 @@ class RabbitMQMessage extends AMQPMessage
     public function getDeliveryInfo() : array
     {
         return $this->originalMessage->getDeliveryInfo();
+    }
+
+    /**
+     * @param $rules
+     * @return array
+     */
+    public function validate(array $rules, array $messages = []) : mixed
+    {
+        $validator = Validator::make($this->all(), $rules);
+        if($validator->fails()) {
+            $routingKey = $this->getRoutingKey();
+            $errors = $validator->errors()->all();
+            RabbitMQ::publish(body: $errors, routingKey: "$routingKey.failed");
+            return throw ValidationException::withMessages($errors);
+        }
+
+        return $validator->validated();
     }
 }
