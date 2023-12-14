@@ -79,6 +79,14 @@ class RabbitMQMessage extends AMQPMessage
     }
 
     /**
+     * @return string|int|null
+     */
+    public function identifier() : string|int|null
+    {
+        return $this->decodedBody['x-identifier'] ?? null;
+    }
+
+    /**
      * @return string|null
      */
     public function publishedAt() : ?string
