@@ -18,11 +18,11 @@ class RabbitMQMessage extends AMQPMessage
             $message->getBody(),
             $message->get_properties()
         );
-        
+
         $this->originalMessage = $message;
         $this->decodedBody = json_decode($message->getBody(), true);
     }
-    
+
     /**
      * @return AMQPMessage
      */
@@ -111,13 +111,29 @@ class RabbitMQMessage extends AMQPMessage
     }
 
     /**
+     * @return string|null
+     */
+    public function getTraceId() : ?string
+    {
+        return $this->decodedBody['x-trace-id'] ?? null;
+    }
+
+    /**
+     * @return array
+     */
+    public function getTrace() : array
+    {
+        return $this->decodedBody['x-trace'] ?? [];
+    }
+
+        /**
      * @return int
      */
     public function getDeliveryTag() : int
     {
         return $this->originalMessage->getDeliveryTag();
     }
-    
+
     /**
      * @return string
      */
@@ -125,7 +141,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         return $this->originalMessage->getConsumerTag();
     }
-    
+
     /**
      * @return bool
      */
@@ -133,7 +149,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         return $this->originalMessage->isRedelivered();
     }
-    
+
     /**
      * @return string
      */
@@ -141,7 +157,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         return $this->originalMessage->getExchange();
     }
-    
+
     /**
      * @return int
      */
@@ -149,7 +165,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         return $this->originalMessage->getMessageCount();
     }
-    
+
     /**
      * @return AMQPChannel
      */
@@ -157,7 +173,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         return $this->originalMessage->getChannel();
     }
-    
+
     /**
      * @return array
      */

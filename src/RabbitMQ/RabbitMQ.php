@@ -14,6 +14,10 @@ use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use Illuminate\Support\Facades\Schema;
+use Ramsey\Uuid\Generator\RandomBytesGenerator;
+use Ramsey\Uuid\Generator\RandomLibAdapter;
+use Ramsey\Uuid\Uuid;
+use Ramsey\Uuid\UuidFactory;
 use function Sentry\captureException;
 
 class RabbitMQ
@@ -38,6 +42,7 @@ class RabbitMQ
      */
     private array $routes = [];
     private Closure|null $authUserCallback;
+    private static ?RabbitMQMessage $currentMessage;
 
 
     /**
@@ -108,7 +113,7 @@ class RabbitMQ
             $this->channel?->consume();
         } catch (\Exception $e) {
             Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
-            RabbitMQAuth::logout();
+            $this->flush();
             captureException($e);
         }
     }
@@ -123,17 +128,16 @@ class RabbitMQ
      */
     public function publish(array $body, string $routingKey, string|int $identifier = null) : void
     {
-        $model = $this->createModel(body: $body, routingKey: $routingKey);
-
         try {
-            $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier]);
+            $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier], routingKey: $routingKey);
             $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
+            Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             captureException($e);
             return;
         }
 
-        $this->publishMessage(model: $model);
+        $this->publishMessage(message: $message);
     }
 
     /**
@@ -151,7 +155,7 @@ class RabbitMQ
         if (!empty($action['controller']) && !empty($action['method'])) {
             $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
         }
-        RabbitMQAuth::logout();
+        $this->flush();
     }
 
     /**
@@ -241,6 +245,7 @@ class RabbitMQ
             $retry = false;
             try {
                 $rabbitMessage = new RabbitMQMessage($message);
+                $this->setCurrentMessage($rabbitMessage);
                 $controller->$method($rabbitMessage, $rabbitMessage->identifier());
             } catch (\Exception $e) {
                 $retry = $this->onFail($message, $e, $expiresIn);
@@ -256,15 +261,51 @@ class RabbitMQ
      * @param int $priority
      * @return AMQPMessage
      */
-    protected function createMessage(array $body, int $priority = 2) : AMQPMessage
+    protected function createMessage(array $body, string $routingKey, int $priority = 2, $retry = false) : AMQPMessage
     {
-        // add timestamp to message
-        if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
-        if (!isset($body['x-user'])) $body = $this->setUserData($body);
-        return new AMQPMessage(body: json_encode($body), properties: [
+        $body = $this->addHeaders($routingKey, $body, $retry);
+        if (!$retry) {
+            Log::info('createMessage');
+            $model = $this->createModel(body: $body, routingKey: $routingKey);
+        }
+        $encoded = json_encode($body);
+        return new AMQPMessage(body: $encoded, properties: [
             'delivery_mode' => $this->deliveryMode,
             'priority' => $priority
         ]);
+    }
+
+    /**
+     * @param string $routingKey
+     * @param array $body
+     * @param mixed $retry
+     * @return array
+     */
+    private function addHeaders(string $routingKey, array $body, mixed $retry): array
+    {
+        $body['x-routing-key'] = $routingKey;
+        // add timestamp to message
+        if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
+        if (!isset($body['x-user'])) $body = $this->setUserData($body);
+        $trace = [];
+        if (!$retry && static::$currentMessage) {
+            $trace = static::$currentMessage->getTrace();
+            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8) . date('P') . "]  :  " . static::$currentMessage->getTraceId();
+        }
+        $body['x-trace'] = $trace;
+        // x-trace-id is used to trace the message
+        $encoded = json_encode($body);
+        if (!isset($body['x-trace-id'])) $body['x-trace-id'] = $this->safeUuid($encoded);
+        return $body;
+    }
+
+    private function safeUuid(string $seed): string
+    {
+        $seed .= microtime();
+        $uuidFactory = new UuidFactory();
+        $uuidFactory->setRandomGenerator(new RandomBytesGenerator($seed));
+        Uuid::setFactory($uuidFactory);
+        return Uuid::uuid4()->toString();
     }
 
     /**
@@ -301,9 +342,11 @@ class RabbitMQ
         if (Schema::hasTable('messages')) {
             return Message::create([
                 'user_id' => Auth::id(),
+                'trace_id' => $body['x-trace-id'],
                 'delivery_mode' => $this->deliveryMode,
                 'routing_key' => $routingKey,
-                'body' => $body
+                'body' => $body['x-data'],
+                'trace' => $body['x-trace'] ?? [],
             ]);
         } return null;
     }
@@ -314,9 +357,11 @@ class RabbitMQ
      * @param $model
      * @return void
      */
-    protected function publishMessage($model) : void
+    protected function publishMessage(AMQPMessage $message) : void
     {
-        if ($model) {
+        if(!Schema::hasTable('messages')) return;
+        $traceId = json_decode($message->getBody(),true)['x-trace-id'] ?? null;
+        if ($traceId && $model = Message::where('trace_id', json_decode($traceId))->first()) {
             $model->published = true;
             $model->save();
         }
@@ -346,7 +391,7 @@ class RabbitMQ
     private function onFail(AMQPMessage $message, Exception $e, int $expiresIn = 0): bool
     {
         $data = json_decode($message->getBody(), true);
-        $data['x-routing-key'] = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
+        $routingKey = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
         $retry = $data['x-retry-state'] ?? false;
         $requeue = $expiresIn > 0 && $expiresIn + ($data['x-published-at'] ?? 0) > time();
         if ($retry && $requeue) {
@@ -354,7 +399,7 @@ class RabbitMQ
 
         } else if ($requeue) {
             $data['x-retry-state'] = true;
-            $newMessage = $this->createMessage(body: $data, priority: 1);
+            $newMessage = $this->createMessage(body: $data, routingKey: $routingKey, priority: 1, retry: true);
             $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
 
             $this->captureExceptionWithScope($e, $data);
@@ -376,4 +421,34 @@ class RabbitMQ
             captureException($e);
         });
     }
+
+    /**
+     * Gets current message
+     * @return RabbitMQMessage
+     */
+    public function current(): ?RabbitMQMessage
+    {
+        return self::$currentMessage;
+    }
+
+    /**
+     * Sets current message
+     * @param RabbitMQMessage|null $currentMessage
+     */
+    private function setCurrentMessage(?RabbitMQMessage $currentMessage): void
+    {
+        self::$currentMessage = $currentMessage;
+    }
+
+    /**
+     * Flushes current auth user and message
+     * @return void
+     */
+    private function flush(): void
+    {
+        RabbitMQAuth::logout();
+        $this->setCurrentMessage(null);
+    }
+
+
 }
