@@ -265,8 +265,7 @@ class RabbitMQ
     {
         $body = $this->addHeaders($routingKey, $body, $retry);
         if (!$retry) {
-            Log::info('createMessage');
-            $model = $this->createModel(body: $body, routingKey: $routingKey);
+            $this->createModel(body: $body, routingKey: $routingKey);
         }
         $encoded = json_encode($body);
         return new AMQPMessage(body: $encoded, properties: [
