@@ -192,7 +192,6 @@ class RabbitMQMessage extends AMQPMessage
         if($validator->fails()) {
             $routingKey = $this->getRoutingKey();
             $errors = $validator->errors()->all();
-            RabbitMQ::publish(body: $errors, routingKey: "$routingKey.failed");
             return throw ValidationException::withMessages($errors);
         }
 
