@@ -40,7 +40,7 @@ class RabbitMQ
      */
     private array $routes = [];
     private Closure|null $authUserCallback;
-    private static ?RabbitMQMessage $currentMessage;
+    private static ?RabbitMQMessage $currentMessage = null;
 
 
     /**
