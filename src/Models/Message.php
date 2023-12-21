@@ -20,7 +20,8 @@ class Message extends Model
      */
     protected $casts = [
         'body' => 'array',
-        'published' => 'boolean'
+        'published' => 'boolean',
+        'trace' => 'array'
     ];
 
     /**
@@ -33,6 +34,8 @@ class Message extends Model
         'delivery_mode',
         'routing_key',
         'body',
-        'published'
+        'published',
+        'trace_id',
+        'trace'
     ];
 }
