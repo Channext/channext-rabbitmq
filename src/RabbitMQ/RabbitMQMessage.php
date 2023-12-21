@@ -2,7 +2,6 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
-use Channext\ChannextRabbitmq\Facades\RabbitMQ;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -126,7 +125,35 @@ class RabbitMQMessage extends AMQPMessage
         return $this->decodedBody['x-trace'] ?? [];
     }
 
-        /**
+    /**
+     * @param $key
+     * @param $default
+     * @return mixed
+     */
+    public function header($key = null, $default = null) : mixed
+    {
+        return $this->decodedBody[$key] ?? null;
+    }
+
+    /**
+     * @return array
+     */
+    public function headers() : array
+    {
+        $headers = [];
+
+        if (isset($this->decodedBody['x-user'])) $headers['x-user'] = $this->decodedBody['x-user'];
+        if (isset($this->decodedBody['x-identifier'])) $headers['x-identifier'] = $this->decodedBody['x-identifier'];
+        if (isset($this->decodedBody['x-published-at'])) $headers['x-published-at'] = $this->decodedBody['x-published-at'];
+        if (isset($this->decodedBody['x-routing-key'])) $headers['x-routing-key'] = $this->decodedBody['x-routing-key'];
+        if (isset($this->decodedBody['x-retry-state'])) $headers['x-retry-state'] = $this->decodedBody['x-retry-state'];
+        if (isset($this->decodedBody['x-trace-id'])) $headers['x-trace-id'] = $this->decodedBody['x-trace-id'];
+        if (isset($this->decodedBody['x-trace'])) $headers['x-trace'] = $this->decodedBody['x-trace'];
+
+        return  $headers;
+    }
+
+    /**
      * @return int
      */
     public function getDeliveryTag() : int
@@ -183,14 +210,14 @@ class RabbitMQMessage extends AMQPMessage
     }
 
     /**
-     * @param $rules
+     * @param array $rules
      * @return array
+     * @throws ValidationException
      */
-    public function validate(array $rules, array $messages = []) : mixed
+    public function validate(array $rules) : array
     {
         $validator = Validator::make($this->all(), $rules);
         if($validator->fails()) {
-            $routingKey = $this->getRoutingKey();
             $errors = $validator->errors()->all();
             return throw ValidationException::withMessages($errors);
         }
