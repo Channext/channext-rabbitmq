@@ -110,7 +110,7 @@ class RabbitMQ
             $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
             $this->channel?->consume();
         } catch (\Exception $e) {
-            Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             $this->flush();
             captureException($e);
         }
@@ -130,7 +130,7 @@ class RabbitMQ
             $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier], routingKey: $routingKey);
             $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
         } catch (\Exception $e) {
-            Log::info($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             captureException($e);
             return;
         }
@@ -246,6 +246,7 @@ class RabbitMQ
                 $this->setCurrentMessage($rabbitMessage);
                 $controller->$method($rabbitMessage, $rabbitMessage->identifier());
             } catch (\Exception $e) {
+                if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
                 $retry = $this->onFail($message, $e, $expiresIn);
             }
             if (!$retry) $this->acknowledgeMessage($message);
