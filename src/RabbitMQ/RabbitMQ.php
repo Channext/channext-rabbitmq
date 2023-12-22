@@ -7,7 +7,6 @@ use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\Models\Message;
 use Closure;
 use Exception;
-use Illuminate\Foundation\Auth\User as AuthenticatableUser;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -15,7 +14,6 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Generator\RandomBytesGenerator;
-use Ramsey\Uuid\Generator\RandomLibAdapter;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use function Sentry\captureException;
@@ -42,7 +40,7 @@ class RabbitMQ
      */
     private array $routes = [];
     private Closure|null $authUserCallback;
-    private static ?RabbitMQMessage $currentMessage;
+    private static ?RabbitMQMessage $currentMessage = null;
 
 
     /**
