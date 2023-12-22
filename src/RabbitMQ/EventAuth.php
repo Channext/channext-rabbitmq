@@ -38,9 +38,9 @@ class EventAuth
     }
 
     // id()
-    public function id(): int
+    public function id(): null|int|string
     {
-        return $this->user->id;
+        return $this->user?->id;
     }
 
     //check
