@@ -149,9 +149,16 @@ class RabbitMQ
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
         $this->setAuthUser($data);
-        [$action, $expiresIn] = $this->routes[$route] ?? [];
+        $routeData = $this->routes[$route] ?? [];
+        $action = $routeData[0] ?? null;
+        $expiresIn = $routeData[1] ?? 0;
         if (!empty($action['controller']) && !empty($action['method'])) {
             $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
+        }
+        else {
+            if (env("APP_ENV") === 'local') Log::error("No callback found for route $route");
+            $this->captureExceptionWithScope(new Exception("No callback found for route $route"), $data);
+            $this->acknowledgeMessage($message);
         }
         $this->flush();
     }
