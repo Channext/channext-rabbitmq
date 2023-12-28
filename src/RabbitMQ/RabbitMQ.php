@@ -9,6 +9,7 @@ use Closure;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -420,12 +421,16 @@ class RabbitMQ
      * @param Exception $e
      * @param array $data
      */
-    private function captureExceptionWithScope(Exception $e, array $data): void {
-        \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
-            $scope->setContext('EventData', $data);
-            captureException($e);
-        });
-    }
+     private function captureExceptionWithScope(Exception $e, array $data): void {
+    \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
+        if ($e instanceof ValidationException) {
+            $data['x-errors'] = $e->errors();
+            $scope->setContext('Errors', $e->errors());
+        }
+        $scope->setContext('Event', $data);
+        captureException($e);
+    });
+}
 
     /**
      * Gets current message
