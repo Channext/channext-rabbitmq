@@ -9,6 +9,7 @@ use Closure;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -149,16 +150,9 @@ class RabbitMQ
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
         $this->setAuthUser($data);
-        $routeData = $this->routes[$route] ?? [];
-        $action = $routeData[0] ?? null;
-        $expiresIn = $routeData[1] ?? 0;
+        [$action, $expiresIn] = $this->routes[$route] ?? [];
         if (!empty($action['controller']) && !empty($action['method'])) {
             $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
-        }
-        else {
-            if (env("APP_ENV") === 'local') Log::error("No callback found for route $route");
-            $this->captureExceptionWithScope(new Exception("No callback found for route $route"), $data);
-            $this->acknowledgeMessage($message);
         }
         $this->flush();
     }
@@ -422,7 +416,11 @@ class RabbitMQ
      */
     private function captureExceptionWithScope(Exception $e, array $data): void {
         \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
-            $scope->setContext('EventData', $data);
+            if ($e instanceof ValidationException) {
+                $data['x-errors'] = $e->errors();
+                $scope->setContext('Errors', $e->errors());
+            }
+            $scope->setContext('Event', $data);
             captureException($e);
         });
     }
