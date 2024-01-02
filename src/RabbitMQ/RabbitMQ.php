@@ -500,9 +500,10 @@ class RabbitMQ
         $this->setCurrentMessage(null);
     }
 
-    protected function makeProcess($path)
+    protected function makeProcess($path = null)
     {
         $command = ['php', 'artisan', 'rabbitmq:consume', '--once'];
+        if (!$path && function_exists('base_path')) $path = base_path();
         return new Process(
             $command,
             $path,
@@ -512,10 +513,10 @@ class RabbitMQ
         );
     }
 
-    public function listenEvents($path) {
+    public function listenEvents($path = null) {
         while(true) {
             if ($this->hasMessage()) {
-                $process = $this->makeProcess();
+                $process = $this->makeProcess($path);
                 $process->run();
                 Log::info('RabbitMQ message consumed');
             } else {
