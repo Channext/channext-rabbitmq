@@ -6,6 +6,7 @@ use App\Models\User;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\Models\Message;
 use Closure;
+use ErrorException;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Generator\RandomBytesGenerator;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
+use Symfony\Component\Process\Process;
 use function Sentry\captureException;
 
 class RabbitMQ
@@ -103,18 +105,56 @@ class RabbitMQ
     /**
      * Consume messages
      *
+     * @param bool $once
      * @return void
      */
-    public function consume() : void
+    public function consume($once = false) : void
     {
         try {
-            $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
-            $this->channel?->consume();
+            if ($once) $this->listen();
+            else $this->work();
         } catch (\Exception $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             $this->flush();
             captureException($e);
         }
+    }
+
+    /**
+     * @return void
+     * @throws ErrorException
+     */
+    protected function work() : void
+    {
+        $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
+        $this->channel?->consume();
+    }
+
+    /**
+     * @return void
+     */
+    protected function listen() : void
+    {
+        $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
+        if ($message) $this->callback($message);
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasMessage() : bool
+    {
+        return (bool) $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, passive: true)[1];
+    }
+
+    /**
+     * Purge queue
+     *
+     * @return void
+     */
+    public function purge() : void
+    {
+        $this->channel?->queue_purge(queue: config('rabbitmq.queue'));
     }
 
     /**
@@ -421,16 +461,16 @@ class RabbitMQ
      * @param Exception $e
      * @param array $data
      */
-     private function captureExceptionWithScope(Exception $e, array $data): void {
-    \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
-        if ($e instanceof ValidationException) {
-            $data['x-errors'] = $e->errors();
-            $scope->setContext('Errors', $e->errors());
-        }
-        $scope->setContext('Event', $data);
-        captureException($e);
-    });
-}
+    private function captureExceptionWithScope(Exception $e, array $data): void {
+        \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
+            if ($e instanceof ValidationException) {
+                $data['x-errors'] = $e->errors();
+                $scope->setContext('Errors', $e->errors());
+            }
+            $scope->setContext('Event', $data);
+            captureException($e);
+        });
+    }
 
     /**
      * Gets current message
@@ -460,5 +500,28 @@ class RabbitMQ
         $this->setCurrentMessage(null);
     }
 
+    protected function makeProcess($path)
+    {
+        $command = ['php', 'artisan', 'rabbitmq:consume', '--once'];
+        return new Process(
+            $command,
+            $path,
+            null,
+            null,
+            60,
+        );
+    }
 
+    public function listenEvents($path) {
+        while(true) {
+            if ($this->hasMessage()) {
+                $process = $this->makeProcess();
+                $process->run();
+                Log::info('RabbitMQ message consumed');
+            } else {
+                //delay 100ms
+                usleep(100000);
+            }
+        }
+    }
 }

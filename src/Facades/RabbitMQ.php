@@ -11,6 +11,8 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
  * @method static void publish(array $body, string $routingKey, string|int $identifier = null)
  * @method static void function consume()
  * @method static null|RabbitMQMessage current()
+ * @method static void consume()
+ * @method static void listenEvents()
  **/
 class RabbitMQ extends Facade
 {
