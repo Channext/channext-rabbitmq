@@ -518,7 +518,6 @@ class RabbitMQ
             if ($this->hasMessage()) {
                 $process = $this->makeProcess($path);
                 $process->run();
-                Log::info('RabbitMQ message consumed');
             } else {
                 //delay 100ms
                 usleep(100000);
