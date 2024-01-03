@@ -3,6 +3,7 @@
 namespace Channext\ChannextRabbitmq\Providers;
 
 use Channext\ChannextRabbitmq\Console\Commands\RabbitMQCommand;
+use Channext\ChannextRabbitmq\Console\Commands\RabbitMQListenCommand;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ;
 use Illuminate\Support\ServiceProvider;
 
@@ -54,6 +55,7 @@ class RabbitMQServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 RabbitMQCommand::class,
+                RabbitMQListenCommand::class
             ]);
         }
     }

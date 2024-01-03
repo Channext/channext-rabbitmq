@@ -5,21 +5,21 @@ namespace Channext\ChannextRabbitmq\Console\Commands;
 use Illuminate\Console\Command;
 use Channext\ChannextRabbitmq\Facades\RabbitMQ;
 
-class RabbitMQCommand extends Command
+class RabbitMQListenCommand extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'rabbitmq:consume {--once : Process a single message and exit}';
+    protected $signature = 'rabbitmq:listen';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Consume RabbitMQ';
+    protected $description = 'Listen RabbitMQ';
 
     /**
      * Create a new command instance.
@@ -38,7 +38,6 @@ class RabbitMQCommand extends Command
      */
     public function handle()
     {
-        $once = $this->option('once');
-        RabbitMQ::consume($once);
+        RabbitMQ::listenEvents();
     }
 }

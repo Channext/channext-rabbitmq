@@ -6,6 +6,7 @@ use App\Models\User;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\Models\Message;
 use Closure;
+use ErrorException;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Generator\RandomBytesGenerator;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
+use Symfony\Component\Process\Process;
 use function Sentry\captureException;
 
 class RabbitMQ
@@ -58,8 +60,18 @@ class RabbitMQ
                 password: config('rabbitmq.password')
             );
             $this->channel = $this->connection?->channel();
-            $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, arguments: ['x-max-priority' => array('I', 5)]);
+            $this->channel?->exchange_declare(
+                exchange: config('rabbitmq.exchange'),
+                type: 'topic',
+                durable: true,
+                auto_delete: false
+            );
+            $this->channel?->queue_declare(
+                queue: config('rabbitmq.queue'),
+                durable: true,
+                auto_delete: false,
+                arguments: ['x-max-priority' => array('I', 5)]
+            );
             $this->authUserCallback = null;
         } catch (\Exception $e) {
             captureException($e);
@@ -93,7 +105,11 @@ class RabbitMQ
             $this->routes[$route] = [$this->createAction(callback: $callback), $expiresIn];
 
             try {
-                $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
+                $this->channel?->queue_bind(
+                    queue: config('rabbitmq.queue'),
+                    exchange: config('rabbitmq.exchange'),
+                    routing_key: $route
+                );
             } catch (\Exception $e) {
                 captureException($e);
             }
@@ -103,18 +119,66 @@ class RabbitMQ
     /**
      * Consume messages
      *
+     * @param bool $once
      * @return void
      */
-    public function consume() : void
+    public function consume($once = false) : void
     {
         try {
-            $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
-            $this->channel?->consume();
+            if ($once) $this->listen();
+            else $this->work();
         } catch (\Exception $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             $this->flush();
             captureException($e);
         }
+    }
+
+    /**
+     * Regular ever running consumer.
+     *
+     * @return void
+     * @throws ErrorException
+     */
+    protected function work() : void
+    {
+        $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
+        $this->channel?->consume();
+    }
+
+    /**
+     * listens for messages, if found processes one and returns
+     *
+     * @return void
+     */
+    protected function listen() : void
+    {
+        $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
+        if ($message) $this->callback($message);
+    }
+
+    /**
+     * Returns true if there is a message in the queue
+     * @return bool
+     */
+    public function hasMessage() : bool
+    {
+        return (bool) $this->channel?->queue_declare(
+            queue: config('rabbitmq.queue'),
+            passive: true,
+            durable: true,
+            auto_delete: false
+        )[1] ?? false;
+    }
+
+    /**
+     * Purge the queue
+     *
+     * @return void
+     */
+    public function purge() : void
+    {
+        $this->channel?->queue_purge(queue: config('rabbitmq.queue'));
     }
 
     /**
@@ -128,8 +192,15 @@ class RabbitMQ
     public function publish(array $body, string $routingKey, string|int $identifier = null) : void
     {
         try {
-            $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier], routingKey: $routingKey);
-            $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
+            $message = $this->createMessage(
+                body: ['x-data' => $body, 'x-identifier' => $identifier],
+                routingKey: $routingKey
+            );
+            $this->channel?->basic_publish(
+                msg: $message,
+                exchange: config('rabbitmq.exchange'),
+                routing_key: $routingKey
+            );
         } catch (\Exception $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             captureException($e);
@@ -154,7 +225,12 @@ class RabbitMQ
         $action = $routeData[0] ?? null;
         $expiresIn = $routeData[1] ?? 0;
         if (!empty($action['controller']) && !empty($action['method'])) {
-            $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
+            $this->createCallback(
+                controller: $action['controller'],
+                method: $action['method'],
+                message: $message,
+                expiresIn: $expiresIn)
+            ;
         }
         else {
             if (env("APP_ENV") === 'local') Log::error("No callback found for route $route");
@@ -296,7 +372,8 @@ class RabbitMQ
         $trace = [];
         if (!$retry && static::$currentMessage) {
             $trace = static::$currentMessage->getTrace();
-            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8) . date('P') . "]  :  " . static::$currentMessage->getTraceId();
+            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8)
+                . date('P') . "]  :  " . static::$currentMessage->getTraceId();
         }
         $body['x-trace'] = $trace;
         // x-trace-id is used to trace the message
@@ -421,16 +498,16 @@ class RabbitMQ
      * @param Exception $e
      * @param array $data
      */
-     private function captureExceptionWithScope(Exception $e, array $data): void {
-    \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
-        if ($e instanceof ValidationException) {
-            $data['x-errors'] = $e->errors();
-            $scope->setContext('Errors', $e->errors());
-        }
-        $scope->setContext('Event', $data);
-        captureException($e);
-    });
-}
+    private function captureExceptionWithScope(Exception $e, array $data): void {
+        \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
+            if ($e instanceof ValidationException) {
+                $data['x-errors'] = $e->errors();
+                $scope->setContext('Errors', $e->errors());
+            }
+            $scope->setContext('Event', $data);
+            captureException($e);
+        });
+    }
 
     /**
      * Gets current message
@@ -460,5 +537,42 @@ class RabbitMQ
         $this->setCurrentMessage(null);
     }
 
+    /**
+     * Creates a one time listener process
+     *
+     * @param null|string $path
+     * @return Process
+     */
+    protected function makeProcess(?string $path = null): Process
+    {
+        $command = ['php', 'artisan', 'rabbitmq:consume', '--once'];
+        if (!$path && function_exists('base_path')) $path = base_path();
+        return new Process(
+            $command,
+            $path,
+            null,
+            null,
+            60,
+        );
+    }
 
+    /**
+     * Listens for messages and processes them in a separate process
+     * enabling hot-reloading.
+     *
+     * @param null|string $path
+     * @return void
+     */
+    public function listenEvents(?string $path = null): void
+    {
+        while(true) {
+            if ($this->hasMessage()) {
+                $process = $this->makeProcess($path);
+                $process->run();
+            } else {
+                //delay 100ms
+                usleep(100000);
+            }
+        }
+    }
 }
