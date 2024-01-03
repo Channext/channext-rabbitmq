@@ -60,8 +60,18 @@ class RabbitMQ
                 password: config('rabbitmq.password')
             );
             $this->channel = $this->connection?->channel();
-            $this->channel?->exchange_declare(exchange: config('rabbitmq.exchange'), type: 'topic', durable: true, auto_delete: false);
-            $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, arguments: ['x-max-priority' => array('I', 5)]);
+            $this->channel?->exchange_declare(
+                exchange: config('rabbitmq.exchange'),
+                type: 'topic',
+                durable: true,
+                auto_delete: false
+            );
+            $this->channel?->queue_declare(
+                queue: config('rabbitmq.queue'),
+                durable: true,
+                auto_delete: false,
+                arguments: ['x-max-priority' => array('I', 5)]
+            );
             $this->authUserCallback = null;
         } catch (\Exception $e) {
             captureException($e);
@@ -95,7 +105,11 @@ class RabbitMQ
             $this->routes[$route] = [$this->createAction(callback: $callback), $expiresIn];
 
             try {
-                $this->channel?->queue_bind(queue: config('rabbitmq.queue'), exchange: config('rabbitmq.exchange'), routing_key: $route);
+                $this->channel?->queue_bind(
+                    queue: config('rabbitmq.queue'),
+                    exchange: config('rabbitmq.exchange'),
+                    routing_key: $route
+                );
             } catch (\Exception $e) {
                 captureException($e);
             }
@@ -149,7 +163,12 @@ class RabbitMQ
      */
     public function hasMessage() : bool
     {
-        return (bool) $this->channel?->queue_declare(queue: config('rabbitmq.queue'), durable: true, auto_delete: false, passive: true)[1];
+        return (bool) $this->channel?->queue_declare(
+            queue: config('rabbitmq.queue'),
+            passive: true,
+            durable: true,
+            auto_delete: false
+        )[1] ?? false;
     }
 
     /**
@@ -173,8 +192,15 @@ class RabbitMQ
     public function publish(array $body, string $routingKey, string|int $identifier = null) : void
     {
         try {
-            $message = $this->createMessage(body: ['x-data' => $body, 'x-identifier' => $identifier], routingKey: $routingKey);
-            $this->channel?->basic_publish(msg: $message, exchange: config('rabbitmq.exchange'), routing_key: $routingKey);
+            $message = $this->createMessage(
+                body: ['x-data' => $body, 'x-identifier' => $identifier],
+                routingKey: $routingKey
+            );
+            $this->channel?->basic_publish(
+                msg: $message,
+                exchange: config('rabbitmq.exchange'),
+                routing_key: $routingKey
+            );
         } catch (\Exception $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             captureException($e);
@@ -199,7 +225,12 @@ class RabbitMQ
         $action = $routeData[0] ?? null;
         $expiresIn = $routeData[1] ?? 0;
         if (!empty($action['controller']) && !empty($action['method'])) {
-            $this->createCallback(controller: $action['controller'], method: $action['method'], message: $message, expiresIn: $expiresIn);
+            $this->createCallback(
+                controller: $action['controller'],
+                method: $action['method'],
+                message: $message,
+                expiresIn: $expiresIn)
+            ;
         }
         else {
             if (env("APP_ENV") === 'local') Log::error("No callback found for route $route");
@@ -341,7 +372,8 @@ class RabbitMQ
         $trace = [];
         if (!$retry && static::$currentMessage) {
             $trace = static::$currentMessage->getTrace();
-            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8) . date('P') . "]  :  " . static::$currentMessage->getTraceId();
+            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8)
+                . date('P') . "]  :  " . static::$currentMessage->getTraceId();
         }
         $body['x-trace'] = $trace;
         // x-trace-id is used to trace the message
