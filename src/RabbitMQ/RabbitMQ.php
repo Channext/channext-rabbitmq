@@ -121,6 +121,8 @@ class RabbitMQ
     }
 
     /**
+     * Regular ever running consumer.
+     *
      * @return void
      * @throws ErrorException
      */
@@ -131,6 +133,8 @@ class RabbitMQ
     }
 
     /**
+     * listens for messages, if found processes one and returns
+     *
      * @return void
      */
     protected function listen() : void
@@ -140,6 +144,7 @@ class RabbitMQ
     }
 
     /**
+     * Returns true if there is a message in the queue
      * @return bool
      */
     public function hasMessage() : bool
@@ -148,7 +153,7 @@ class RabbitMQ
     }
 
     /**
-     * Purge queue
+     * Purge the queue
      *
      * @return void
      */
@@ -500,7 +505,13 @@ class RabbitMQ
         $this->setCurrentMessage(null);
     }
 
-    protected function makeProcess($path = null)
+    /**
+     * Creates a one time listener process
+     *
+     * @param null|string $path
+     * @return Process
+     */
+    protected function makeProcess(?string $path = null): Process
     {
         $command = ['php', 'artisan', 'rabbitmq:consume', '--once'];
         if (!$path && function_exists('base_path')) $path = base_path();
@@ -513,7 +524,15 @@ class RabbitMQ
         );
     }
 
-    public function listenEvents($path = null) {
+    /**
+     * Listens for messages and processes them in a separate process
+     * enabling hot-reloading.
+     *
+     * @param null|string $path
+     * @return void
+     */
+    public function listenEvents(?string $path = null): void
+    {
         while(true) {
             if ($this->hasMessage()) {
                 $process = $this->makeProcess($path);
