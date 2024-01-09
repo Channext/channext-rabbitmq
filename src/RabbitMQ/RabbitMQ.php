@@ -305,10 +305,6 @@ class RabbitMQ
             return app($controller);
         }
 
-        $controller = "App\\Http\\EventControllers\\$controller";
-        if (class_exists(class: $controller)) {
-            return app($controller);
-        }
         return null;
     }
 
@@ -540,10 +536,11 @@ class RabbitMQ
     /**
      * Creates a one time listener process
      *
+     * @param array $options
      * @param null|string $path
      * @return Process
      */
-    protected function makeProcess(?string $path = null): Process
+    protected function makeProcess(array $options, ?string $path = null): Process
     {
         $command = ['php', 'artisan', 'rabbitmq:consume', '--once'];
         if (!$path && function_exists('base_path')) $path = base_path();
@@ -552,7 +549,7 @@ class RabbitMQ
             $path,
             null,
             null,
-            60,
+            $options['timeout'] ?? 60,
         );
     }
 
@@ -560,19 +557,43 @@ class RabbitMQ
      * Listens for messages and processes them in a separate process
      * enabling hot-reloading.
      *
+     * Options:
+     *      poll: The frequency in seconds to poll for messages
+     *      routeRefresh: The number of polls to wait before refreshing routes
+     *      timeout: The number of seconds a child process can run
+     *
+     * @param array $options
      * @param null|string $path
      * @return void
      */
-    public function listenEvents(?string $path = null): void
+    public function listenEvents(array $options, ?string $path = null): void
     {
+        $sleep = $this->getSleep($options['poll']);
+
+        $stalePolls = $options['routeRefresh'] ?? 50;
+
+        $counter = 0;
         while(true) {
-            if ($this->hasMessage()) {
-                $process = $this->makeProcess($path);
+            if ($this->hasMessage() || ++$counter > $stalePolls) {
+                $counter = 0;
+                $process = $this->makeProcess($options, $path);
                 $process->run();
             } else {
-                //delay 100ms
-                usleep(100000);
+                usleep($sleep);
             }
         }
+    }
+
+    /**
+     * Gets sleep time in microseconds with polling frequency
+     *
+     * @param $poll
+     * @return float|int
+     */
+    private function getSleep($poll): int|float
+    {
+        $frequency = $poll ?? 10;
+        $frequency = max($frequency, 1);
+        return floor(1000 / $frequency) * 1000;
     }
 }
