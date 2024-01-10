@@ -12,7 +12,10 @@ class RabbitMQListenCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'rabbitmq:listen';
+    protected $signature = 'rabbitmq:listen
+                            {--poll=10 : Polling frequency}
+                            {--route-refresh=50 : Refresh routes if stale after this many polls}
+                            {--timeout=60 : The number of seconds a child process can run}';
 
     /**
      * The console command description.
@@ -38,6 +41,11 @@ class RabbitMQListenCommand extends Command
      */
     public function handle()
     {
-        RabbitMQ::listenEvents();
+        $options = [
+            'poll' => $this->option('poll'),
+            'routeRefresh' => $this->option('route-refresh'),
+            'timeout' => $this->option('timeout'),
+        ];
+        RabbitMQ::listenEvents($options);
     }
 }
