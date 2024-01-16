@@ -8,6 +8,7 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
 
 /**
  * @method static void route(string $topic, string $callback, int $expiresIn = 0)
+ * @method static void universal(string $callback, int $expiresIn = 0)
  * @method static void publish(array $body, string $routingKey, string|int $identifier = null)
  * @method static void function consume()
  * @method static null|RabbitMQMessage current()

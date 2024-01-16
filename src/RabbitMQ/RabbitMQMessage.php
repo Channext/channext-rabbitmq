@@ -149,6 +149,7 @@ class RabbitMQMessage extends AMQPMessage
         if (isset($this->decodedBody['x-retry-state'])) $headers['x-retry-state'] = $this->decodedBody['x-retry-state'];
         if (isset($this->decodedBody['x-trace-id'])) $headers['x-trace-id'] = $this->decodedBody['x-trace-id'];
         if (isset($this->decodedBody['x-trace'])) $headers['x-trace'] = $this->decodedBody['x-trace'];
+        if (isset($this->decodedBody['x-origin'])) $headers['x-origin'] = $this->decodedBody['x-origin'];
 
         return  $headers;
     }
