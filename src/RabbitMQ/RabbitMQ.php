@@ -254,7 +254,7 @@ class RabbitMQ
         $routeData = $this->resolveRouteData($route);
         $action = $routeData[0] ?? null;
         $expiresIn = $routeData[1] ?? 0;
-        if (!empty($action['controller']) && !empty($action['method'])) {
+        if (!empty($action['controller']) && !empty($action['method']) && method_exists(object_or_class: $action['controller'], method: $action['method'])) {
             $this->createCallback(
                 controller: $action['controller'],
                 method: $action['method'],
@@ -349,18 +349,16 @@ class RabbitMQ
      */
     protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, int $expiresIn = 0) : void
     {
-        if (method_exists(object_or_class: $controller, method: $method)) {
-            $retry = false;
-            try {
-                $rabbitMessage = new RabbitMQMessage($message);
-                $this->setCurrentMessage($rabbitMessage);
-                $controller->$method($rabbitMessage, $rabbitMessage->identifier());
-            } catch (\Exception $e) {
-                if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
-                $retry = $this->onFail($message, $e, $expiresIn);
-            }
-            if (!$retry) $this->acknowledgeMessage($message);
+        $retry = false;
+        try {
+            $rabbitMessage = new RabbitMQMessage($message);
+            $this->setCurrentMessage($rabbitMessage);
+            $controller->$method($rabbitMessage, $rabbitMessage->identifier());
+        } catch (\Exception $e) {
+            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            $retry = $this->onFail($message, $e, $expiresIn);
         }
+        if (!$retry) $this->acknowledgeMessage($message);
     }
 
     /**
