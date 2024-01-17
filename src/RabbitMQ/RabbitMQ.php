@@ -101,6 +101,10 @@ class RabbitMQ
      */
     public function route(string $route, string $callback, int $expiresIn = 0) : void
     {
+        if (array_key_exists('#', $this->routes)) {
+            if (env("APP_ENV") === 'local') Log::warning("An universal route already exists. No specific routes can be added.");
+            return;
+        }
         if (!array_key_exists($route, $this->routes)) {
             $this->routes[$route] = [$this->createAction(callback: $callback), $expiresIn];
 
@@ -114,6 +118,18 @@ class RabbitMQ
                 captureException($e);
             }
         }
+    }
+
+    /**
+     * Define a universal event listener
+     *
+     * @param string $callback
+     * @param int $expiresIn
+     * @return void
+     */
+    public function universal(string $callback, int $expiresIn = 0) : void
+    {
+        $this->route(route: '#', callback: $callback, expiresIn: $expiresIn);
     }
 
     /**
@@ -211,6 +227,20 @@ class RabbitMQ
     }
 
     /**
+     * Resolve route data
+     *
+     * @param string $route
+     * @return array
+     */
+    public function resolveRouteData(string $route) : array
+    {
+        if (array_key_exists('#', $this->routes)) {
+            return $this->routes['#'];
+        }
+        return $this->routes[$route] ?? [];
+    }
+
+    /**
      * Call route
      *
      * @param AMQPMessage $message
@@ -221,7 +251,7 @@ class RabbitMQ
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
         $this->setAuthUser($data);
-        $routeData = $this->routes[$route] ?? [];
+        $routeData = $this->resolveRouteData($route);
         $action = $routeData[0] ?? null;
         $expiresIn = $routeData[1] ?? 0;
         if (!empty($action['controller']) && !empty($action['method'])) {
@@ -375,6 +405,7 @@ class RabbitMQ
         // x-trace-id is used to trace the message
         $encoded = json_encode($body);
         if (!isset($body['x-trace-id'])) $body['x-trace-id'] = $this->safeUuid($encoded);
+        $body['x-origin'] = env('APP_NAME', env('RABBITMQ_QUEUE', 'unknown'));
         return $body;
     }
 
