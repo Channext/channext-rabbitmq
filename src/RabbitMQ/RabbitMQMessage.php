@@ -23,6 +23,17 @@ class RabbitMQMessage extends AMQPMessage
     }
 
     /**
+     * @return string
+     */
+    public function __toString() : string
+    {
+        return print_r([
+            'body' => $this->all(),
+            'headers' => $this->headers(),
+        ], true);
+    }
+
+    /**
      * @return AMQPMessage
      */
     public function getOriginalMessage() : AMQPMessage
