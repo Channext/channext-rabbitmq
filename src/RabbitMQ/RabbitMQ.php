@@ -73,7 +73,7 @@ class RabbitMQ
                 arguments: ['x-max-priority' => array('I', 5)]
             );
             $this->authUserCallback = null;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             captureException($e);
         }
     }
@@ -86,7 +86,7 @@ class RabbitMQ
         try {
             $this->channel?->close();
             $this->connection?->close();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             captureException($e);
         }
     }
@@ -114,7 +114,7 @@ class RabbitMQ
                     exchange: config('rabbitmq.exchange'),
                     routing_key: $route
                 );
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 captureException($e);
             }
         }
@@ -143,7 +143,7 @@ class RabbitMQ
         try {
             if ($once) $this->listen();
             else $this->work();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             $this->flush();
             captureException($e);
@@ -217,7 +217,7 @@ class RabbitMQ
                 exchange: config('rabbitmq.exchange'),
                 routing_key: $routingKey
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
             captureException($e);
             return;
@@ -488,7 +488,7 @@ class RabbitMQ
     {
         try {
             $message->ack();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             captureException($e);
         }
     }
