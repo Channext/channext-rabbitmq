@@ -354,8 +354,11 @@ class RabbitMQ
             $rabbitMessage = new RabbitMQMessage($message);
             $this->setCurrentMessage($rabbitMessage);
             $controller->$method($rabbitMessage, $rabbitMessage->identifier());
-        } catch (\Exception $e) {
-            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+        } catch (\Throwable $e) {
+            if (env("APP_ENV") === 'local') {
+                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
+                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
+            }
             $retry = $this->onFail($message, $e, $expiresIn);
         }
         if (!$retry) $this->acknowledgeMessage($message);
@@ -496,7 +499,7 @@ class RabbitMQ
      * @param int $expiresIn
      * @return bool
      */
-    private function onFail(AMQPMessage $message, Exception $e, int $expiresIn = 0): bool
+    private function onFail(AMQPMessage $message, \Throwable $e, int $expiresIn = 0): bool
     {
         $data = json_decode($message->getBody(), true);
         $routingKey = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
@@ -523,7 +526,7 @@ class RabbitMQ
      * @param Exception $e
      * @param array $data
      */
-    private function captureExceptionWithScope(Exception $e, array $data): void {
+    private function captureExceptionWithScope(\Throwable $e, array $data): void {
         \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
             if ($e instanceof ValidationException) {
                 $data['x-errors'] = $e->errors();
