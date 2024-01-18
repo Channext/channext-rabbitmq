@@ -144,7 +144,10 @@ class RabbitMQ
             if ($once) $this->listen();
             else $this->work();
         } catch (\Throwable $e) {
-            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            if (env("APP_ENV") === 'local') {
+                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
+                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
+            }
             $this->flush();
             captureException($e);
         }
@@ -218,7 +221,10 @@ class RabbitMQ
                 routing_key: $routingKey
             );
         } catch (\Throwable $e) {
-            if (env("APP_ENV") === 'local') Log::error($e->getMessage().' '.$e->getLine().' '.$e->getTraceAsString());
+            if (env("APP_ENV") === 'local') {
+                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
+                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
+            }
             captureException($e);
             return;
         }
