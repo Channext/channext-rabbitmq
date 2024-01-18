@@ -2,6 +2,7 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -212,17 +213,35 @@ class RabbitMQMessage extends AMQPMessage
 
     /**
      * @param array $rules
-     * @return array
+     * @param array $replacements
      * @throws ValidationException
+     * @return array
      */
-    public function validate(array $rules) : array
+    public function validate(array $rules, array $replacements = []): array
     {
         $validator = Validator::make($this->all(), $rules);
-        if($validator->fails()) {
+        if ($validator->fails()) {
             $errors = $validator->errors()->all();
             return throw ValidationException::withMessages($errors);
         }
 
-        return $validator->validated();
+        $validated = $validator->validated();
+        return $this->replaceValidated($validated, $replacements);
+    }
+
+    /**
+     * @param array $validated
+     * @param array $replacements
+     * @throws ValidationException
+     * @return array
+     */
+    private function replaceValidated(array $validated, array $replacements): array
+    {
+        foreach ($replacements as $key => $replacement) {
+            $value = Arr::get($validated, $key);
+            Arr::set($validated , $replacement, $value);
+            Arr::forget($validated , $key, $value);
+        }
+        return $validated;
     }
 }
