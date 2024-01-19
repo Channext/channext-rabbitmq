@@ -249,6 +249,7 @@ class RabbitMQMessage extends AMQPMessage
     private function replaceValidated(array $validated, array $replacements): array
     {
         foreach ($replacements as $key => $replacement) {
+            if(!array_key_exists($key, $validated)) continue;
             if(Arr::get($validated, $replacement) !== null) continue;
             $value = Arr::get($validated, $key);
             Arr::set($validated , $replacement, $value);
