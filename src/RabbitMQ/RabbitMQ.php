@@ -405,7 +405,6 @@ class RabbitMQ
      */
     protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, bool $retry = false) : void
     {
-        $retry = false;
         try {
             $rabbitMessage = new RabbitMQMessage($message);
             $this->setCurrentMessage($rabbitMessage);
