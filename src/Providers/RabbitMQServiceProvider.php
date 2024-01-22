@@ -36,10 +36,6 @@ class RabbitMQServiceProvider extends ServiceProvider
             __DIR__ . '/../routes/topics.php' => base_path('routes/topics.php'),
         ]);
 
-        $this->publishes([
-            __DIR__ . '/../Models/Message.php' => app('path'). '/Models/Message.php',
-        ]);
-
         if (!file_exists(app('path') . '/Providers/EventAuthServiceProvider.php')) {
             $this->publishes([
                 __DIR__ . '/EventAuthServiceProvider.php' => app('path') . '/Providers/EventAuthServiceProvider.php',

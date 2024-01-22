@@ -4,20 +4,14 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 
 use App\Models\User;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
-use Channext\ChannextRabbitmq\Models\Message;
 use Closure;
 use ErrorException;
 use Exception;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-use Illuminate\Support\Facades\Schema;
-use Ramsey\Uuid\Generator\RandomBytesGenerator;
-use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use Symfony\Component\Process\Process;
 use function Sentry\captureException;
 
@@ -43,6 +37,7 @@ class RabbitMQ
      */
     private array $routes = [];
     private Closure|null $authUserCallback;
+    private Closure|null $serializeAuthUserCallback;
     private static ?RabbitMQMessage $currentMessage = null;
 
 
@@ -73,6 +68,7 @@ class RabbitMQ
                 arguments: ['x-max-priority' => array('I', 5)]
             );
             $this->authUserCallback = null;
+            $this->serializeAuthUserCallback = null;
         } catch (\Throwable $e) {
             captureException($e);
         }
@@ -144,10 +140,7 @@ class RabbitMQ
             if ($once) $this->listen();
             else $this->work();
         } catch (\Throwable $e) {
-            if (env("APP_ENV") === 'local') {
-                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
-                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
-            }
+            $this->logLocalErrors($e);
             $this->flush();
             captureException($e);
         }
@@ -201,6 +194,27 @@ class RabbitMQ
     }
 
     /**
+     * Inject message to a specific queue
+     *
+     * @param string $queue
+     * @param RabbitMQMessage $message
+     * @return void
+     */
+    public function inject(string $queue, RabbitMQMessage $message): void
+    {
+        $this->channel?->queue_declare(
+            queue: $queue,
+            durable: true,
+            auto_delete: false,
+            arguments: ['x-max-priority' => array('I', 5)]
+        );
+        $this->channel?->basic_publish(
+            msg: $message->getOriginalMessage(),
+            routing_key: $queue // route directly to the queue
+        );
+    }
+
+    /**
      * Publish message
      *
      * @param array $body
@@ -211,25 +225,19 @@ class RabbitMQ
     public function publish(array $body, string $routingKey, string|int $identifier = null) : void
     {
         try {
-            $message = $this->createMessage(
-                body: ['x-data' => $body, 'x-identifier' => $identifier],
-                routingKey: $routingKey
-            );
+            $headers = ['x-identifier' => $identifier];
+            $headers = $this->setUserData($headers);
+            $message = RabbitMQMessage::make($routingKey, $body, $headers);
             $this->channel?->basic_publish(
-                msg: $message,
+                msg: $message->getOriginalMessage(),
                 exchange: config('rabbitmq.exchange'),
                 routing_key: $routingKey
             );
         } catch (\Throwable $e) {
-            if (env("APP_ENV") === 'local') {
-                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
-                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
-            }
+            $this->logLocalErrors($e);
             captureException($e);
             return;
         }
-
-        $this->publishMessage(message: $message);
     }
 
     /**
@@ -259,13 +267,13 @@ class RabbitMQ
         $this->setAuthUser($data);
         $routeData = $this->resolveRouteData($route);
         $action = $routeData[0] ?? null;
-        $expiresIn = $routeData[1] ?? 0;
+        $retry = $routeData[1] ?? false;
         if (!empty($action['controller']) && !empty($action['method']) && method_exists(object_or_class: $action['controller'], method: $action['method'])) {
             $this->createCallback(
                 controller: $action['controller'],
                 method: $action['method'],
                 message: $message,
-                expiresIn: $expiresIn)
+                retry: $retry)
             ;
         }
         else {
@@ -286,10 +294,15 @@ class RabbitMQ
     protected function setAuthUser($messagePayload) : void {
         $user = null;
         if ($userData = $messagePayload['x-user'] ?? null) {
-            $authUserCallback = app('EventAuth')?->authUserCallback;
-            $user = $authUserCallback ? $authUserCallback($userData) : null;
+            try {
+                $authUserCallback = app('EventAuth')?->authUserCallback;
+                $user = $authUserCallback ? $authUserCallback($userData) : null;
 
-            if ($user) RabbitMQAuth::setUser($user);
+                if ($user) RabbitMQAuth::setUser($user);
+            } catch (\Throwable $e) {
+                $this->logLocalErrors($e);
+                captureException($e);
+            }
         }
         if (!$user) RabbitMQAuth::logout();
     }
@@ -305,6 +318,43 @@ class RabbitMQ
     public function setAuthUserCallback(Closure $callback) : void
     {
         $this->authUserCallback = $callback;
+    }
+
+
+    /**
+     * Set user data in the message body
+     *
+     * The user data in the message body will be used to set the auth user when this event is consumed
+     * x-user field will be set in the message body using either the current auth user from the api call or the user
+     * from the message payload.
+     *
+     * @param array $body
+     * @return array
+     */
+    protected function setUserData(array $body) : array
+    {
+        try {
+            $serializeAuthUserCallback = app('EventAuth')?->serializeAuthUserCallback;
+            $body['x-user'] = $serializeAuthUserCallback ? $serializeAuthUserCallback() : null;
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            captureException($e);
+        }
+
+        return $body;
+    }
+
+    /**
+     * Set serialize auth user callback
+     *
+     * This will use the implementation in EventAuthServiceProvider
+     *
+     * @param Closure $callback
+     * @return void
+     */
+    public function setSerializeAuthUserCallback(Closure $callback) : void
+    {
+        $this->serializeAuthUserCallback = $callback;
     }
 
     /**
@@ -350,10 +400,10 @@ class RabbitMQ
      * @param mixed $controller
      * @param mixed $method
      * @param AMQPMessage $message
-     * @param int $expiresIn
+     * @param bool $retry
      * @return void
      */
-    protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, int $expiresIn = 0) : void
+    protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, bool $retry = false) : void
     {
         $retry = false;
         try {
@@ -361,127 +411,10 @@ class RabbitMQ
             $this->setCurrentMessage($rabbitMessage);
             $controller->$method($rabbitMessage, $rabbitMessage->identifier());
         } catch (\Throwable $e) {
-            if (env("APP_ENV") === 'local') {
-                Log::error(get_class($e). " at " . $e->getFile() . " line " . $e->getLine());
-                Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
-            }
-            $retry = $this->onFail($message, $e, $expiresIn);
+            $this->logLocalErrors($e);
+            $this->onFail($message, $e, $retry);
         }
-        if (!$retry) $this->acknowledgeMessage($message);
-    }
-
-    /**
-     * Create message
-     *
-     * @param array $body
-     * @param int $priority
-     * @return AMQPMessage
-     */
-    protected function createMessage(array $body, string $routingKey, int $priority = 2, $retry = false) : AMQPMessage
-    {
-        $body = $this->addHeaders($routingKey, $body, $retry);
-        if (!$retry) {
-            $this->createModel(body: $body, routingKey: $routingKey);
-        }
-        $encoded = json_encode($body);
-        return new AMQPMessage(body: $encoded, properties: [
-            'delivery_mode' => $this->deliveryMode,
-            'priority' => $priority
-        ]);
-    }
-
-    /**
-     * @param string $routingKey
-     * @param array $body
-     * @param mixed $retry
-     * @return array
-     */
-    private function addHeaders(string $routingKey, array $body, mixed $retry): array
-    {
-        $body['x-routing-key'] = $routingKey;
-        // add timestamp to message
-        if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
-        if (!isset($body['x-user'])) $body = $this->setUserData($body);
-        $trace = [];
-        if (!$retry && static::$currentMessage) {
-            $trace = static::$currentMessage->getTrace();
-            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8)
-                . date('P') . "]  :  " . static::$currentMessage->getTraceId();
-        }
-        $body['x-trace'] = $trace;
-        // x-trace-id is used to trace the message
-        $encoded = json_encode($body);
-        if (!isset($body['x-trace-id'])) $body['x-trace-id'] = $this->safeUuid($encoded);
-        $body['x-origin'] = env('APP_NAME', env('RABBITMQ_QUEUE', 'unknown'));
-        return $body;
-    }
-
-    private function safeUuid(string $seed): string
-    {
-        $seed .= microtime();
-        $uuidFactory = new UuidFactory();
-        $uuidFactory->setRandomGenerator(new RandomBytesGenerator($seed));
-        Uuid::setFactory($uuidFactory);
-        return Uuid::uuid4()->toString();
-    }
-
-    /**
-     * Set user data in the message body
-     *
-     * The user data in the message body will be used to set the auth user when this event is consumed
-     * x-user field will be set in the message body using either the current auth user from the api call or the user
-     * from the message payload.
-     *
-     * @param array $body
-     * @return array
-     */
-    protected function setUserData(array $body) : array
-    {
-        $user = Auth::user() ?? RabbitMQAuth::user();
-        if ($user) $body['x-user'] = [
-            'id' => $user->id,
-            'type' => $user->type,
-            'role' => $user->role,
-            'org' => $user->vendor_id ?? $user->reseller_id ?? $user->distributor_id ?? $user->marketing_agency_id ?? null
-        ];
-        return $body;
-    }
-
-    /**
-     * Create model for message
-     *
-     * @param array $body
-     * @param string $routingKey
-     * @return Message|null
-     */
-    protected function createModel(array $body, string $routingKey) : ?Message
-    {
-        if (Schema::hasTable('messages')) {
-            return Message::create([
-                'user_id' => Auth::id(),
-                'trace_id' => $body['x-trace-id'],
-                'delivery_mode' => $this->deliveryMode,
-                'routing_key' => $routingKey,
-                'body' => $body['x-data'],
-                'trace' => $body['x-trace'] ?? [],
-            ]);
-        } return null;
-    }
-
-    /**
-     * Publish message model
-     *
-     * @param $model
-     * @return void
-     */
-    protected function publishMessage(AMQPMessage $message) : void
-    {
-        if(!Schema::hasTable('messages')) return;
-        $traceId = json_decode($message->getBody(),true)['x-trace-id'] ?? null;
-        if ($traceId && $model = Message::where('trace_id', json_decode($traceId))->first()) {
-            $model->published = true;
-            $model->save();
-        }
+        $this->acknowledgeMessage($message);
     }
 
     /**
@@ -502,28 +435,24 @@ class RabbitMQ
     /**
      * @param AMQPMessage $message
      * @param Exception $e
-     * @param int $expiresIn
-     * @return bool
+     * @param bool $retry
+     * @return void
      */
-    private function onFail(AMQPMessage $message, \Throwable $e, int $expiresIn = 0): bool
+    private function onFail(AMQPMessage $message, \Throwable $e, bool $retry = false): void
     {
         $data = json_decode($message->getBody(), true);
         $routingKey = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
-        $retry = $data['x-retry-state'] ?? false;
-        $requeue = $expiresIn > 0 && $expiresIn + ($data['x-published-at'] ?? 0) > time();
-        if ($retry && $requeue) {
-            $message->nack(requeue: true);
-
-        } else if ($requeue) {
-            $data['x-retry-state'] = true;
-            $newMessage = $this->createMessage(body: $data, routingKey: $routingKey, priority: 1, retry: true);
-            $this->channel?->basic_publish(msg: $newMessage, routing_key: config('rabbitmq.queue'));
-
-            $this->captureExceptionWithScope($e, $data);
-        } else {
-            $this->captureExceptionWithScope($e, $data);
+        if ($retry) {
+//            $data['x-retry-state'] = true;
+//            $message = RabbitMQMessage::make($routingKey, $data['x-data'], headers: $data, priority: 2);
+            self::publish([
+                'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
+                'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
+                'traceId' => $data['x-trace-id'],
+            ], "$routingKey.failed");
         }
-        return $retry && $requeue;
+
+        $this->captureExceptionWithScope($e, $data);
     }
 
     /**
@@ -633,5 +562,17 @@ class RabbitMQ
         $frequency = $poll ?? 10;
         $frequency = max($frequency, 1);
         return floor(1000 / $frequency) * 1000;
+    }
+
+    /**
+     * @param \Throwable|Exception $e
+     * @return void
+     */
+    private function logLocalErrors(\Throwable|Exception $e): void
+    {
+        if (env("APP_ENV") === 'local') {
+            Log::error(get_class($e) . " at " . $e->getFile() . " line " . $e->getLine());
+            Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
+        }
     }
 }
