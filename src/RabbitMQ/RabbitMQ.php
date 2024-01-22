@@ -92,17 +92,17 @@ class RabbitMQ
      *
      * @param string $route
      * @param string $callback
-     * @param int $expiresIn
+     * @param bool $retry
      * @return void
      */
-    public function route(string $route, string $callback, int $expiresIn = 0) : void
+    public function route(string $route, string $callback, bool $retry = false) : void
     {
         if (array_key_exists('#', $this->routes)) {
             if (env("APP_ENV") === 'local') Log::warning("An universal route already exists. No specific routes can be added.");
             return;
         }
         if (!array_key_exists($route, $this->routes)) {
-            $this->routes[$route] = [$this->createAction(callback: $callback), $expiresIn];
+            $this->routes[$route] = [$this->createAction(callback: $callback), $retry];
 
             try {
                 $this->channel?->queue_bind(
@@ -120,12 +120,12 @@ class RabbitMQ
      * Define a universal event listener
      *
      * @param string $callback
-     * @param int $expiresIn
+     * @param bool $retry
      * @return void
      */
-    public function universal(string $callback, int $expiresIn = 0) : void
+    public function universal(string $callback, bool $retry = false) : void
     {
-        $this->route(route: '#', callback: $callback, expiresIn: $expiresIn);
+        $this->route(route: '#', callback: $callback, retry: $retry);
     }
 
     /**
@@ -449,6 +449,7 @@ class RabbitMQ
                 'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
                 'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
                 'traceId' => $data['x-trace-id'],
+                'queue' => config('rabbitmq.queue'),
             ], "$routingKey.failed");
         }
 
