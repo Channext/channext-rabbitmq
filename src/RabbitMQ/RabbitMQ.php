@@ -442,8 +442,6 @@ class RabbitMQ
         $data = json_decode($message->getBody(), true);
         $routingKey = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
         if ($retry) {
-//            $data['x-retry-state'] = true;
-//            $message = RabbitMQMessage::make($routingKey, $data['x-data'], headers: $data, priority: 2);
             self::publish([
                 'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
                 'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
