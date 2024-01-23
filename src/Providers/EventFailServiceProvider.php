@@ -18,7 +18,7 @@ class EventFailServiceProvider extends ServiceProvider
     }
 
     public function boot(): void {
-        $this->app['EventAuth']->setAuthUserCallback(function (RabbitMQMessage $rabbitMessage, \Throwable $e, bool $retry) {
+        $this->app['EventFail']->setOnFailCallback(function (RabbitMQMessage $rabbitMessage, \Throwable $e, bool $retry) {
             // Todo: Implement your own logic here
             // This part should have your own event fail logic
 
