@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Channext\ChannextRabbitmq\Providers;
+namespace App\Providers;
 
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQMessage;
