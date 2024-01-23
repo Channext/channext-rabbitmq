@@ -28,17 +28,18 @@ class RabbitMQServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->publishes([
-            __DIR__ . '/../config/rabbitmq.php' => base_path('config/rabbitmq.php'),
-        ]);
+        if (!file_exists(base_path('config/rabbitmq.php'))){
+            $this->publishes([
+                __DIR__ . '/../config/rabbitmq.php' => base_path('config/rabbitmq.php'),
+            ]);
+        }
 
-        $this->publishes([
-            __DIR__ . '/../routes/topics.php' => base_path('routes/topics.php'),
-        ]);
 
-        $this->publishes([
-            __DIR__ . '/../Models/Message.php' => app('path'). '/Models/Message.php',
-        ]);
+        if (!file_exists(base_path('routes/topics.php'))){
+            $this->publishes([
+                __DIR__ . '/../routes/topics.php' => base_path('routes/topics.php'),
+            ]);
+        }
 
         if (!file_exists(app('path') . '/Providers/EventAuthServiceProvider.php')) {
             $this->publishes([
@@ -46,11 +47,17 @@ class RabbitMQServiceProvider extends ServiceProvider
             ]);
         }
 
+        if (!file_exists(app('path') . '/Providers/EventFailServiceProvider.php')) {
+            $this->publishes([
+                __DIR__ . '/EventFailServiceProvider.php' => app('path') . '/Providers/EventFailServiceProvider.php',
+            ]);
+        }
+
         if (file_exists(base_path('routes/topics.php'))) {
             require base_path('routes/topics.php');
         }
 
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+//        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
         if ($this->app->runningInConsole()) {
             $this->commands([
