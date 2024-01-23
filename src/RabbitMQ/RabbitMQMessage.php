@@ -280,6 +280,15 @@ class RabbitMQMessage extends AMQPMessage
         return $validated;
     }
 
+    /**
+     * Make a new RabbitMQMessage
+     *
+     * @param string $routingKey
+     * @param array $data
+     * @param array $headers
+     * @param int|null $priority
+     * @return RabbitMQMessage
+     */
     public static function make(string $routingKey, array $data, array $headers = [], ?int $priority = null): RabbitMQMessage
     {
 
@@ -345,6 +354,11 @@ class RabbitMQMessage extends AMQPMessage
         return $body;
     }
 
+    /**
+     * Generate a safe uuid
+     * @param string $seed
+     * @return string
+     */
     private static function safeUuid(string $seed): string
     {
         $seed .= microtime();
