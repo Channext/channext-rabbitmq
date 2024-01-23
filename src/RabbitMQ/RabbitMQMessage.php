@@ -37,11 +37,10 @@ class RabbitMQMessage extends AMQPMessage
     {
         $priority = $priority ?? self::$priority;
         $encoded = json_encode($data);
-        $message = new AMQPMessage(body: $encoded, properties: [
+        return new AMQPMessage(body: $encoded, properties: [
             'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT,
             'priority' => $priority
         ]);
-        return $message;
     }
 
     /**

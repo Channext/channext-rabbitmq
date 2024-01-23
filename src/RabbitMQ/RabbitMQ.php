@@ -38,6 +38,7 @@ class RabbitMQ
     private array $routes = [];
     private Closure|null $authUserCallback;
     private Closure|null $serializeAuthUserCallback;
+    private Closure|null $onFailCallback;
     private static ?RabbitMQMessage $currentMessage = null;
 
 
@@ -320,6 +321,32 @@ class RabbitMQ
         $this->authUserCallback = $callback;
     }
 
+    /**
+     * Set serialize auth user callback
+     *
+     * This will use the implementation in EventAuthServiceProvider
+     *
+     * @param Closure $callback
+     * @return void
+     */
+    public function setSerializeAuthUserCallback(Closure $callback) : void
+    {
+        $this->serializeAuthUserCallback = $callback;
+    }
+
+    /**
+     * Set on fail callback
+     *
+     * This will use the implementation in EventFailServiceProvider
+     *
+     * @param Closure $callback
+     * @return void
+     */
+    public function setOnFailCallback(Closure $callback) : void
+    {
+        $this->onFailCallback = $callback;
+    }
+
 
     /**
      * Set user data in the message body
@@ -342,19 +369,6 @@ class RabbitMQ
         }
 
         return $body;
-    }
-
-    /**
-     * Set serialize auth user callback
-     *
-     * This will use the implementation in EventAuthServiceProvider
-     *
-     * @param Closure $callback
-     * @return void
-     */
-    public function setSerializeAuthUserCallback(Closure $callback) : void
-    {
-        $this->serializeAuthUserCallback = $callback;
     }
 
     /**
@@ -439,17 +453,17 @@ class RabbitMQ
      */
     private function onFail(AMQPMessage $message, \Throwable $e, bool $retry = false): void
     {
-        $data = json_decode($message->getBody(), true);
-        $routingKey = $data['x-routing-key'] ?? $message->getRoutingKey() ?? '';
-        if ($retry) {
-            self::publish([
-                'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
-                'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
-                'traceId' => $data['x-trace-id'],
-                'queue' => config('rabbitmq.queue'),
-            ], "$routingKey.failed");
+        $rabbitMessage = new RabbitMQMessage($message);
+
+        try {
+            $onFailCallback = app('EventFail')?->onFailCallback;
+            $onFailCallback ? $onFailCallback($rabbitMessage, $e, $retry) : null;
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            captureException($e);
         }
 
+        $data = json_decode($message->getBody(), true);
         $this->captureExceptionWithScope($e, $data);
     }
 
