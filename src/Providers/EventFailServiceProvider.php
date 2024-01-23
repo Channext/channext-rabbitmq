@@ -25,7 +25,7 @@ class EventFailServiceProvider extends ServiceProvider
 // Example:
 //            $routingKey = $rabbitMessage->getRoutingKey();
 //        if ($retry) {
-//            self::publish([
+//            RabbitMQ::publish([
 //                'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
 //                'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
 //                'traceId' => $rabbitMessage->getTraceId(),
