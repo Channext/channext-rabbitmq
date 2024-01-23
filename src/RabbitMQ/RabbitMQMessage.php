@@ -346,6 +346,9 @@ class RabbitMQMessage extends AMQPMessage
             $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8)
                 . date('P') . "]  :  " . RabbitMQFacade::current()->getTraceId();
         }
+        else if ($retry) {
+            $trace = $body['x-trace'] ?? [];
+        }
         $body['x-trace'] = $trace;
         // x-trace-id is used to trace the message
         $encoded = json_encode($body);
