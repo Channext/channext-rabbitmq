@@ -2,7 +2,6 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
-use App\Models\User;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Closure;
 use ErrorException;
@@ -92,11 +91,11 @@ class RabbitMQ
      * Define routing key and bind it to a queue
      *
      * @param string $route
-     * @param string $callback
+     * @param string|array $callback
      * @param bool $retry
      * @return void
      */
-    public function route(string $route, string $callback, bool $retry = false) : void
+    public function route(string $route, string|array $callback, bool $retry = false) : void
     {
         if (array_key_exists('#', $this->routes)) {
             if (env("APP_ENV") === 'local') Log::warning("An universal route already exists. No specific routes can be added.");
@@ -374,13 +373,17 @@ class RabbitMQ
     /**
      * Create action
      *
-     * @param $callback
+     * @param string|array $callback
      * @return array
      */
-    protected function createAction(string $callback) : array
+    protected function createAction(string|array $callback) : array
     {
         $action = [];
-        if (str_contains($callback, '@')) {
+        if (is_array($callback)) {
+            $action['controller'] = $this->createController(controller: $callback[0]);
+            $action['method'] = $callback[1];
+        }
+        else if (str_contains($callback, '@')) {
             $controller = strtok(string: $callback, token: '@');
             $action['controller'] = $this->createController(controller: $controller);
             $action['method'] = strtok(string: '');
