@@ -138,7 +138,7 @@ class RabbitMQMessage extends AMQPMessage
      */
     public function isRetried() : bool
     {
-        return $this->decodedBody['x-retry-state'] ?? false;
+        return (bool) ($this->decodedBody['x-retry-state'] ?? 0);
     }
 
     /**
@@ -339,7 +339,7 @@ class RabbitMQMessage extends AMQPMessage
         $body['x-routing-key'] = $routingKey;
         // add timestamp to message
         if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
-        $retry = $body['x-retry-state'] ?? false;
+        $retry = (bool) ($body['x-retry-state'] ?? 0);
         $trace = [];
         if (!$retry && RabbitMQFacade::current()) {
             $trace = RabbitMQFacade::current()->getTrace();

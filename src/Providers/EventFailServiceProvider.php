@@ -24,14 +24,15 @@ class EventFailServiceProvider extends ServiceProvider
 
 // Example:
 //            $routingKey = $rabbitMessage->getRoutingKey();
-//            if ($retry) {
-//                RabbitMQ::publish([
-//                    'failReason' => get_class($e) . " at " . $e->getFile() . " line " . $e->getLine(),
-//                    'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
-//                    'traceId' => $rabbitMessage->getTraceId(),
-//                    'queue' => config('rabbitmq.queue'),
-//                ], "$routingKey.failed");
-//            }
+//            $retryAmount = $rabbitMessage->header('x-retry-state', 0);
+//            RabbitMQ::publish([
+//                'failReason' => get_class($e) . ' at ' . $e->getFile() . ' line ' . $e->getLine(),
+//                'stackTrace' => $e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString(),
+//                'traceId' => $rabbitMessage->getTraceId(),
+//                'queue' => config('rabbitmq.queue'),
+//                'eventFailed' => true,
+//                'retryAmount' => $retryAmount,
+//            ], "{$routingKey}.failed");
         });
     }
 

@@ -220,12 +220,13 @@ class RabbitMQ
      * @param array $body
      * @param string $routingKey
      * @param string|int|null $identifier
+     * @param array $headers
      * @return void
      */
-    public function publish(array $body, string $routingKey, string|int $identifier = null) : void
+    public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []) : void
     {
         try {
-            $headers = ['x-identifier' => $identifier];
+            $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
             $message = RabbitMQMessage::make($routingKey, $body, $headers);
             $this->channel?->basic_publish(
