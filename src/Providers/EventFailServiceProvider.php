@@ -32,6 +32,7 @@ class EventFailServiceProvider extends ServiceProvider
 //                'queue' => config('rabbitmq.queue'),
 //                'eventFailed' => true,
 //                'retryAmount' => $retryAmount,
+//                'retryEvent' => $retry,
 //            ], "{$routingKey}.failed");
         });
     }
