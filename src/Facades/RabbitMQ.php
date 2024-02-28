@@ -9,7 +9,7 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
 /**
  * @method static void route(string $topic, string|array $callback, bool $retry = false)
  * @method static void universal(string $callback, bool $retry = false)
- * @method static void publish(array $body, string $routingKey, string|int $identifier = null)
+ * @method static void publish(array $body, string $routingKey, string|int $identifier = null, array $headers = [])
  * @method static void inject(string $queue, RabbitMQMessage $message)
  * @method static void function consume()
  * @method static null|RabbitMQMessage current()
