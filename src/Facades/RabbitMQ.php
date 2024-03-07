@@ -15,6 +15,7 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
  * @method static null|RabbitMQMessage current()
  * @method static void consume()
  * @method static void listenEvents(array $options)
+ * @method static void test(string $route, RabbitMQMessage $message)
  **/
 class RabbitMQ extends Facade
 {
