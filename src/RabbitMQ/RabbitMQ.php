@@ -421,17 +421,20 @@ class RabbitMQ
      * @param bool $retry
      * @return void
      */
-    protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, bool $retry = false) : void
+    protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, bool $retry = false, bool $test = false): void
     {
         try {
             $rabbitMessage = new RabbitMQMessage($message);
             $this->setCurrentMessage($rabbitMessage);
-            $controller->$method($rabbitMessage, $rabbitMessage->identifier());
-        } catch (\Throwable $e) {
+            $controller->{$method}($rabbitMessage, $rabbitMessage->identifier());
+        } catch (Throwable $e) {
             $this->logLocalErrors($e);
             $this->onFail($message, $e, $retry);
+            if($test) throw $e;
         }
-        $this->acknowledgeMessage($message);
+        if (!$test) {
+            $this->acknowledgeMessage($message);
+        }
     }
 
     /**
@@ -514,6 +517,25 @@ class RabbitMQ
     {
         RabbitMQAuth::logout();
         $this->setCurrentMessage(null);
+    }
+
+    /**
+     * Consume messages
+     *
+     * @param bool $once
+     * @param string $route
+     * @param RabbitMQMessage $message
+     * @return void
+     */
+    public function test(string $route, RabbitMQMessage $message): void
+    {
+        $this->createCallback(
+            controller: $this->routes[$route][0]['controller'],
+            method: $this->routes[$route][0]['method'],
+            message: $message,
+            test: true
+        );
+
     }
 
     /**
