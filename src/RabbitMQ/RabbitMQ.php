@@ -427,7 +427,7 @@ class RabbitMQ
             $rabbitMessage = new RabbitMQMessage($message);
             $this->setCurrentMessage($rabbitMessage);
             $controller->{$method}($rabbitMessage, $rabbitMessage->identifier());
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             $this->onFail($message, $e, $retry);
             if($test) throw $e;
