@@ -2,6 +2,7 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Closure;
 use ErrorException;
@@ -234,6 +235,10 @@ class RabbitMQ
                 exchange: config('rabbitmq.exchange'),
                 routing_key: $routingKey
             );
+        } catch (EventLoopException $e) {
+            $this->logLocalErrors($e);
+            $this->captureExceptionWithScope($e, $body);
+            return;
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             captureException($e);
