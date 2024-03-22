@@ -2,14 +2,13 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
+use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
-use Ramsey\Uuid\Generator\RandomBytesGenerator;
 use Ramsey\Uuid\Uuid;
-use Ramsey\Uuid\UuidFactory;
 use \Channext\ChannextRabbitmq\Facades\RabbitMQ as RabbitMQFacade;
 
 class RabbitMQMessage extends AMQPMessage
@@ -288,6 +287,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param array $headers
      * @param int|null $priority
      * @return RabbitMQMessage
+     * @throws EventLoopException
      */
     public static function make(string $routingKey, array $data, array $headers = [], ?int $priority = null): RabbitMQMessage
     {
@@ -333,6 +333,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param string $routingKey
      * @param array $body
      * @return array
+     * @throws EventLoopException
      */
     private static function addHeaders(string $routingKey, array $body): array
     {
@@ -343,31 +344,21 @@ class RabbitMQMessage extends AMQPMessage
         $trace = [];
         if (!$retry && RabbitMQFacade::current()) {
             $trace = RabbitMQFacade::current()->getTrace();
-            $trace[] = "[".date('Y-m-d\TH:i:s') . substr(microtime(), 1, 8)
-                . date('P') . "]  :  " . RabbitMQFacade::current()->getTraceId();
+            $trace[RabbitMQFacade::current()->getRoutingKey()] = RabbitMQFacade::current()->getTraceId();
         }
         else if ($retry) {
             $trace = $body['x-trace'] ?? [];
         }
+
+        if (array_key_exists($routingKey, $trace)) {
+            throw new EventLoopException("Routing key $routingKey already exists in trace");
+        }
+
         $body['x-trace'] = $trace;
         // x-trace-id is used to trace the message
-        $encoded = json_encode($body);
-        if (!isset($body['x-trace-id'])) $body['x-trace-id'] = self::safeUuid($encoded);
+        if (!isset($body['x-trace-id'])) $body['x-trace-id'] = Uuid::uuid7()->toString();
         $body['x-origin'] = env('APP_NAME', env('RABBITMQ_QUEUE', 'unknown'));
         return $body;
     }
 
-    /**
-     * Generate a safe uuid
-     * @param string $seed
-     * @return string
-     */
-    private static function safeUuid(string $seed): string
-    {
-        $seed .= microtime();
-        $uuidFactory = new UuidFactory();
-        $uuidFactory->setRandomGenerator(new RandomBytesGenerator($seed));
-        Uuid::setFactory($uuidFactory);
-        return Uuid::uuid4()->toString();
-    }
 }
