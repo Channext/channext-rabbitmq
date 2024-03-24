@@ -424,7 +424,9 @@ class RabbitMQ
      * @param mixed $method
      * @param AMQPMessage $message
      * @param bool $retry
+     * @param bool $test
      * @return void
+     * @throws \Throwable
      */
     protected function createCallback(mixed $controller, mixed $method, AMQPMessage $message, bool $retry = false, bool $test = false): void
     {
@@ -527,10 +529,10 @@ class RabbitMQ
     /**
      * Consume messages
      *
-     * @param bool $once
      * @param string $route
      * @param RabbitMQMessage $message
      * @return void
+     * @throws \Throwable
      */
     public function test(string $route, RabbitMQMessage $message): void
     {
@@ -540,7 +542,7 @@ class RabbitMQ
             message: $message,
             test: true
         );
-
+        $this->flush();
     }
 
     /**
