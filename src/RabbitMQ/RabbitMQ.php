@@ -203,6 +203,9 @@ class RabbitMQ
      */
     public function inject(string $queue, RabbitMQMessage $message): void
     {
+        if (env("RABBIT_TEST", false)) {
+            return;
+        }
         $this->channel?->queue_declare(
             queue: $queue,
             durable: true,
@@ -230,6 +233,9 @@ class RabbitMQ
             $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
             $message = RabbitMQMessage::make($routingKey, $body, $headers);
+            if (env("RABBIT_TEST", false)) {
+                return;
+            }
             $this->channel?->basic_publish(
                 msg: $message->getOriginalMessage(),
                 exchange: config('rabbitmq.exchange'),
