@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exception\AMQPChannelClosedException;
+use PhpAmqpLib\Exception\AMQPConnectionBlockedException;
+use PhpAmqpLib\Exception\AMQPConnectionClosedException;
+use PhpAmqpLib\Exception\AMQPIOException;
+use PhpAmqpLib\Exception\AMQPNoDataException;
+use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 use Symfony\Component\Process\Process;
 use function Sentry\captureException;
@@ -151,12 +157,57 @@ class RabbitMQ
      * Regular ever running consumer.
      *
      * @return void
-     * @throws ErrorException
+     * @throws AMQPIOException
      */
     protected function work() : void
     {
-        $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
-        $this->channel?->consume();
+        $consumerTag = $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
+        $this->waitToConsume($consumerTag);
+
+
+    }
+
+    /**
+     * Consumer process loop
+     *
+     * @param string $consumerTag
+     * @return void
+     * @throws AMQPIOException
+     * @throws Exception
+     */
+    private function waitToConsume(string $consumerTag): void {
+        $this->checkConnection();
+        while ($this->channel->is_consuming()) {
+            try {
+                if (!$consumerTag || !array_key_exists($consumerTag, $this->channel->callbacks)) {
+                    throw new Exception('No consumer found');
+                }
+                $this->channel->wait(timeout: 3);
+            } catch (AMQPTimeoutException $exception) {
+                captureException($exception);
+                // something might be wrong, try to send heartbeat which involves select+write
+                $this->connection->checkHeartBeat();
+            } catch (AMQPNoDataException $exception) {
+                // no data, just continue
+            }
+        }
+    }
+
+
+
+    /**
+     * @throws AMQPChannelClosedException
+     * @throws AMQPConnectionClosedException
+     * @throws AMQPConnectionBlockedException
+     */
+    private function checkConnection()
+    {
+        if ($this->connection === null || !$this->connection->isConnected()) {
+            throw new AMQPChannelClosedException('Channel connection is closed.');
+        }
+        if ($this->connection->isBlocked()) {
+            throw new AMQPConnectionBlockedException();
+        }
     }
 
     /**
