@@ -440,6 +440,7 @@ class RabbitMQ
             $rabbitMessage = new RabbitMQMessage($message);
             $this->setCurrentMessage($rabbitMessage);
             $controller->{$method}($rabbitMessage, $rabbitMessage->identifier());
+            $this->connection->getIO()->read(0);
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             $this->onFail($message, $e, $retry);
