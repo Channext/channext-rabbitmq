@@ -184,7 +184,6 @@ class RabbitMQ
                 }
                 $this->channel->wait(timeout: 3);
             } catch (AMQPTimeoutException $exception) {
-                captureException($exception);
                 // something might be wrong, try to send heartbeat which involves select+write
                 $this->connection->checkHeartBeat();
             } catch (AMQPNoDataException $exception) {
