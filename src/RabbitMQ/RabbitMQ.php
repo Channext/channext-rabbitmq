@@ -161,10 +161,10 @@ class RabbitMQ
      */
     protected function work() : void
     {
-        $consumerTag = $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
-        $this->waitToConsume($consumerTag);
-
-
+        $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
+        while (count($this->channel->callbacks)) {
+            $this->channel->wait();
+        }
     }
 
     /**
