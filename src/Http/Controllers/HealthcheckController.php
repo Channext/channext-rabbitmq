@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Http\Controllers;
+namespace Channext\ChannextRabbitmq\Http\Controllers;
 
 use Exception;
 use Illuminate\Http\JsonResponse;
