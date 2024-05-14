@@ -22,4 +22,5 @@ return [
     'password' => env('RABBITMQ_PASSWORD', 'rabbit'),
     'exchange' => env('RABBITMQ_EXCHANGE', 'events_stream'),
     'queue' => env('RABBITMQ_QUEUE', 'notifications'),
+    'api' => env('RABBITMQ_API', env('RABBITMQ_HOST', 'rabbitmq') . '/api'),
 ];
