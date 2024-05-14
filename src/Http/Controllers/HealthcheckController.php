@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 
 use function Sentry\captureException;
 
-class HealthcheckController extends Controller
+class HealthcheckController
 {
     /**
      * Healthcheck endpoint
@@ -22,7 +22,7 @@ class HealthcheckController extends Controller
         $appIp = gethostbyname(gethostname());
         $url = config('rabbitmq.api') . '/queues/%2f/' . config('rabbitmq.queue');
         try {
-            $response = Http::withBasicAuth(env('RABBITMQ_USER'), env('RABBITMQ_PASSWORD'))
+            $response = Http::withBasicAuth(config('rabbitmq.user'), config('rabbitmq.password'))
                 ->get($url);
         } catch (Exception $e) {
             captureException($e);
