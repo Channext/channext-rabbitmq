@@ -54,6 +54,9 @@ class RabbitMQ
      */
     public function __construct()
     {
+        // Disable RabbitMQ in specific microservices
+        if(env("RABBITMQ_DISABLED", false)) return;
+
         try {
             $this->connection = new AMQPStreamConnection(
                 host: config('rabbitmq.host'),
