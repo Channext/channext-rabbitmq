@@ -54,29 +54,7 @@ class RabbitMQ
      */
     public function __construct()
     {
-        // Disable RabbitMQ in specific microservices
-        if(env("RABBITMQ_DISABLED", false)) return;
-
         try {
-            $this->connection = new AMQPStreamConnection(
-                host: config('rabbitmq.host'),
-                port: config('rabbitmq.port'),
-                user: config('rabbitmq.user'),
-                password: config('rabbitmq.password')
-            );
-            $this->channel = $this->connection?->channel();
-            $this->channel?->exchange_declare(
-                exchange: config('rabbitmq.exchange'),
-                type: 'topic',
-                durable: true,
-                auto_delete: false
-            );
-            $this->channel?->queue_declare(
-                queue: config('rabbitmq.queue'),
-                durable: true,
-                auto_delete: false,
-                arguments: ['x-max-priority' => array('I', 5)]
-            );
             $this->authUserCallback = null;
             $this->serializeAuthUserCallback = null;
         } catch (\Throwable $e) {
@@ -94,6 +72,51 @@ class RabbitMQ
             $this->connection?->close();
         } catch (\Throwable $e) {
             captureException($e);
+        }
+    }
+
+    /**
+     * Initialize connection
+     *
+     * @return void
+     */
+    private function initializeConnection(): void {
+        if(env("RABBITMQ_DISABLED", false)) return;
+        try {
+            $this->connection = $this->connection ?? new AMQPStreamConnection(
+                host: config('rabbitmq.host'),
+                port: config('rabbitmq.port'),
+                user: config('rabbitmq.user'),
+                password: config('rabbitmq.password')
+            );
+            $this->channel = $this->channel ?? $this->connection?->channel();
+            $this->channel?->exchange_declare(
+                exchange: config('rabbitmq.exchange'),
+                type: 'topic',
+                durable: true,
+                auto_delete: false
+            );
+            $this->channel?->queue_declare(
+                queue: config('rabbitmq.queue'),
+                durable: true,
+                auto_delete: false,
+                arguments: ['x-max-priority' => array('I', 5)]
+            );
+        } catch (\Throwable $e) {
+            captureException($e);
+        }
+    }
+
+    /**
+     * Prepare listener routes
+     *
+     * @return void
+     */
+    private function prepareListenerRoutes(): void {
+        $this->initializeConnection();
+
+        if (file_exists(base_path('routes/topics.php'))) {
+            require base_path('routes/topics.php');
         }
     }
 
@@ -146,6 +169,7 @@ class RabbitMQ
      */
     public function consume($once = false) : void
     {
+        $this->prepareListenerRoutes();
         try {
             if ($once) $this->listen();
             else $this->work();
@@ -259,16 +283,23 @@ class RabbitMQ
         if (env("RABBIT_TEST", false)) {
             return;
         }
-        $this->channel?->queue_declare(
-            queue: $queue,
-            durable: true,
-            auto_delete: false,
-            arguments: ['x-max-priority' => array('I', 5)]
-        );
-        $this->channel?->basic_publish(
-            msg: $message->getOriginalMessage(),
-            routing_key: $queue // route directly to the queue
-        );
+        try {
+            $this->initializeConnection();
+            $this->channel?->queue_declare(
+                queue: $queue,
+                durable: true,
+                auto_delete: false,
+                arguments: ['x-max-priority' => array('I', 5)]
+            );
+            $this->channel?->basic_publish(
+                msg: $message->getOriginalMessage(),
+                routing_key: $queue // route directly to the queue
+            );
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            captureException($e);
+            return;
+        }
     }
 
     /**
@@ -283,6 +314,7 @@ class RabbitMQ
     public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []) : void
     {
         try {
+            $this->initializeConnection();
             $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
             $message = RabbitMQMessage::make($routingKey, $body, $headers);
