@@ -53,12 +53,6 @@ class RabbitMQServiceProvider extends ServiceProvider
             ]);
         }
 
-        if (file_exists(base_path('routes/topics.php'))) {
-            require base_path('routes/topics.php');
-        }
-
-//        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
-
         if ($this->app->runningInConsole()) {
             $this->commands([
                 RabbitMQCommand::class,
