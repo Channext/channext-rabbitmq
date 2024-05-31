@@ -45,6 +45,7 @@ class RabbitMQ
     private Closure|null $authUserCallback;
     private Closure|null $serializeAuthUserCallback;
     private Closure|null $onFailCallback;
+    private bool $test = false;
     private static ?RabbitMQMessage $currentMessage = null;
 
 
@@ -109,11 +110,11 @@ class RabbitMQ
 
     /**
      * Prepare listener routes
-     *
+     * @param bool $test
      * @return void
      */
-    private function prepareListenerRoutes(): void {
-        $this->initializeConnection();
+    private function prepareListenerRoutes(bool $test = false): void {
+        if (!$test) $this->initializeConnection();
 
         if (file_exists(base_path('routes/topics.php'))) {
             require base_path('routes/topics.php');
@@ -136,15 +137,16 @@ class RabbitMQ
         }
         if (!array_key_exists($route, $this->routes)) {
             $this->routes[$route] = [$this->createAction(callback: $callback), $retry];
-
-            try {
-                $this->channel?->queue_bind(
-                    queue: config('rabbitmq.queue'),
-                    exchange: config('rabbitmq.exchange'),
-                    routing_key: $route
-                );
-            } catch (\Throwable $e) {
-                captureException($e);
+            if (!$this->test) {
+                try {
+                    $this->channel?->queue_bind(
+                        queue: config('rabbitmq.queue'),
+                        exchange: config('rabbitmq.exchange'),
+                        routing_key: $route
+                    );
+                } catch (\Throwable $e) {
+                    captureException($e);
+                }
             }
         }
     }
@@ -627,6 +629,7 @@ class RabbitMQ
      */
     public function test(string $route, RabbitMQMessage $message): void
     {
+        $this->prepareListenerRoutes(true);
         $this->createCallback(
             controller: $this->routes[$route][0]['controller'],
             method: $this->routes[$route][0]['method'],
