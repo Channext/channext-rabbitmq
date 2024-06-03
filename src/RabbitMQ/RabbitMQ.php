@@ -674,6 +674,7 @@ class RabbitMQ
      */
     public function listenEvents(array $options, ?string $path = null): void
     {
+        $this->initializeConnection();
         $sleep = $this->getSleep($options['poll']);
 
         $stalePolls = $options['routeRefresh'] ?? 50;
