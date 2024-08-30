@@ -171,6 +171,7 @@ class RabbitMQ
      */
     public function consume($once = false) : void
     {
+        if(env("RABBITMQ_CONSUME_DISABLED", false)) return;
         $this->prepareListenerRoutes();
         try {
             if ($once) $this->listen();
@@ -315,6 +316,7 @@ class RabbitMQ
      */
     public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []) : void
     {
+        if(env("RABBITMQ_PUBLISH_DISABLED", false)) return;
         try {
             $this->initializeConnection();
             $headers['x-identifier'] = $identifier;
