@@ -82,7 +82,6 @@ class RabbitMQ
      * @return void
      */
     private function initializeConnection(): void {
-        if(env("RABBITMQ_DISABLED", false)) return;
         try {
             $this->connection = $this->connection ?? new AMQPStreamConnection(
                 host: config('rabbitmq.host'),
@@ -171,6 +170,7 @@ class RabbitMQ
      */
     public function consume($once = false) : void
     {
+        if(env("RABBITMQ_DISABLED", false)) return;
         $this->prepareListenerRoutes();
         try {
             if ($once) $this->listen();
