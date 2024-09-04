@@ -339,7 +339,7 @@ class RabbitMQMessage extends AMQPMessage
     {
         $body['x-routing-key'] = $routingKey;
         // add timestamp to message
-        if (!isset($body['x-published-at'])) $body['x-published-at'] = time();
+        if (!isset($body['x-published-at'])) $body['x-published-at'] = floor(microtime(true) * 1000);
         $retry = (bool) ($body['x-retry-state'] ?? 0);
         $trace = [];
         if (!$retry && RabbitMQFacade::current()) {
