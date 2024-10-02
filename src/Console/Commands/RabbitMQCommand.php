@@ -12,7 +12,9 @@ class RabbitMQCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'rabbitmq:consume {--once : Process a single message and exit}';
+    protected $signature = 'rabbitmq:consume
+                            {--once : Process a single message and exit}
+                            {--info : Display message info}';
 
     /**
      * The console command description.
@@ -39,6 +41,8 @@ class RabbitMQCommand extends Command
     public function handle()
     {
         $once = $this->option('once');
-        RabbitMQ::consume($once);
+        $info = $this->option('info');
+
+        RabbitMQ::consume($once, $info ? $this : null);
     }
 }
