@@ -7,6 +7,7 @@ use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Closure;
 use ErrorException;
 use Exception;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -45,6 +46,7 @@ class RabbitMQ
     private Closure|null $authUserCallback;
     private Closure|null $serializeAuthUserCallback;
     private Closure|null $onFailCallback;
+    private static Command|null $logger = null;
     private bool $test = false;
     private static ?RabbitMQMessage $currentMessage = null;
 
@@ -167,11 +169,14 @@ class RabbitMQ
      * Consume messages
      *
      * @param bool $once
+     * @param Command|null $logger
      * @return void
      */
-    public function consume($once = false) : void
+    public function consume(bool $once = false, ?Command $logger = null) : void
     {
         if(env("RABBITMQ_CONSUME_DISABLED", false)) return;
+        if (!self::$logger) self::$logger = $logger;
+        if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
         $this->prepareListenerRoutes();
         try {
             if ($once) $this->listen();
@@ -365,6 +370,7 @@ class RabbitMQ
     {
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
+        $this->consoleLog("Consuming message from route $route");
         $this->setAuthUser($data);
         $routeData = $this->resolveRouteData($route);
         $action = $routeData[0] ?? null;
@@ -714,7 +720,14 @@ class RabbitMQ
     {
         if (env("APP_ENV") === 'local') {
             Log::error(get_class($e) . " at " . $e->getFile() . " line " . $e->getLine());
+            $this->consoleLog($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
             Log::error($e->getMessage() . ' ' . $e->getLine() . ' ' . $e->getTraceAsString());
+        }
+    }
+
+    private function consoleLog(string $s): void {
+        if (env("APP_ENV") === 'local' && self::$logger) {
+            self::$logger->info($s);
         }
     }
 }
