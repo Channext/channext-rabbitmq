@@ -8,6 +8,7 @@ use Closure;
 use ErrorException;
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -90,7 +91,8 @@ class RabbitMQ
                 host: config('rabbitmq.host'),
                 port: config('rabbitmq.port'),
                 user: config('rabbitmq.user'),
-                password: config('rabbitmq.password')
+                password: config('rabbitmq.password'),
+                vhost: config('rabbitmq.vhost', '/')
             );
             $this->channel = $this->channel ?? $this->connection?->channel();
             $this->channel?->exchange_declare(
@@ -118,9 +120,7 @@ class RabbitMQ
     private function prepareListenerRoutes(bool $test = false): void {
         if (!$test) $this->initializeConnection();
 
-        if (file_exists(base_path('routes/topics.php'))) {
-            require base_path('routes/topics.php');
-        }
+        $this->defineRoutes();
     }
 
     /**
@@ -729,5 +729,76 @@ class RabbitMQ
         if (env("APP_ENV") === 'local' && self::$logger) {
             self::$logger->info($s);
         }
+    }
+
+    private function defineRoutes(): void
+    {
+        if (file_exists(base_path('routes/topics.php'))) {
+            require base_path('routes/topics.php');
+        }
+    }
+
+    public function getDefinedRoutes(): array
+    {
+        return array_keys($this->routes);
+    }
+
+    /**
+     * Get all bindings
+     *
+     * @throws \Illuminate\Http\Client\RequestException
+     * @return array
+     */
+    public function getBindings(?string $queue = null, ?string $exchange = null, ?string $vhost = '/'): array
+    {
+        $vhost = $vhost ?? config('rabbitmq.vhost', '/');
+        $vhost = urlencode($vhost);
+        $exchange = $exchange ?? config('rabbitmq.exchange');
+        $queue = $queue ?? config('rabbitmq.queue');
+        $url = config('rabbitmq.api') . '/bindings/' . $vhost . '/e/' . $exchange . '/q/' . $queue;
+        $response = Http::withBasicAuth(config('rabbitmq.user'), config('rabbitmq.password'))->get($url);
+
+        return $response->json();
+    }
+
+    /**
+     * Delete a binding
+     *
+     * @throws \Illuminate\Http\Client\RequestException
+     * @param string $route
+     * @return bool
+     */
+    public function deleteBinding(string $route, ?string $queue = null, ?string $exchange = null, ?string $vhost = '/'): bool
+    {
+        $vhost = $vhost ?? config('rabbitmq.vhost', '/');
+        $vhost = urlencode($vhost);
+        $exchange = $exchange ?? config('rabbitmq.exchange');
+        $queue = $queue ?? config('rabbitmq.queue');
+        $url = config('rabbitmq.api') . '/bindings/' . $vhost . '/e/' . $exchange . '/q/' . $queue . '/' . $route;
+        $response = Http::withBasicAuth(config('rabbitmq.user'), config('rabbitmq.password'))->delete($url);
+
+        return $response->noContent();
+    }
+
+    /**
+     * Unbind unused routes
+     *
+     * @return void
+     */
+    public function unbindUnused(): void
+    {
+        $activeBindings = array_map(fn ($binding) => $binding['routing_key'], $this->getBindings());
+        $this->defineRoutes();
+        $definedRoutes = $this->getDefinedRoutes();
+        // if global # is defined then remove all other bindings
+        if (in_array('#', $definedRoutes)) {
+            $definedRoutes = ['#'];
+        }
+
+        $inactiveBindings = array_diff($activeBindings, $definedRoutes);
+        foreach ($inactiveBindings as $inactiveBinding) {
+            $this->deleteBinding($inactiveBinding);
+        }
+
     }
 }

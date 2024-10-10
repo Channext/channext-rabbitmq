@@ -16,6 +16,10 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
  * @method static void consume()
  * @method static void listenEvents(array $options)
  * @method static void test(string $route, RabbitMQMessage $message)
+ * @method static array getDefinedRoutes()
+ * @method static array getBindings(?string $queue = null, ?string $exchange = null, ?string $vhost = '/')
+ * @method static bool deleteBinding(string $route, ?string $queue = null, ?string $exchange = null, ?string $vhost = '/')
+ * @method static bool unbindUnused()
  **/
 class RabbitMQ extends Facade
 {
