@@ -777,7 +777,7 @@ class RabbitMQ
         $url = config('rabbitmq.api') . '/bindings/' . $vhost . '/e/' . $exchange . '/q/' . $queue . '/' . $route;
         $response = Http::withBasicAuth(config('rabbitmq.user'), config('rabbitmq.password'))->delete($url);
 
-        return $response->noContent();
+        return $response->status() === 204;
     }
 
     /**
