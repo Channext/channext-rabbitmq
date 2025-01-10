@@ -4,10 +4,12 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 
 use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
+use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
 use Closure;
 use ErrorException;
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +22,10 @@ use PhpAmqpLib\Exception\AMQPIOException;
 use PhpAmqpLib\Exception\AMQPNoDataException;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
+use PhpParser\NodeTraverser;
+use PhpParser\ParserFactory;
+use PhpParser\PhpVersion;
+use Symfony\Component\Finder\Finder;
 use Symfony\Component\Process\Process;
 use function Sentry\captureException;
 
@@ -800,5 +806,37 @@ class RabbitMQ
             $this->deleteBinding($inactiveBinding);
         }
 
+    }
+
+    /**
+     * Get publish usages
+     *
+     * @return array
+     */
+    public function getPublishers(string $directory = 'App', ?array $exclude = []): array
+    {
+        $phpVersion = PhpVersion::getHostVersion();
+        $parser = (new ParserFactory())->createForVersion($phpVersion);
+        $finder = new Finder();
+        $finder->files()->in($directory)->name('*.php');
+
+        $usages = [];
+        foreach ($finder as $file) {
+            $class = str_replace(".{$file->getExtension()}", '', $file->getPathname());
+            $class = str_replace('/', '\\', $class);
+            if (in_array($class, $exclude)) {
+                continue;
+            }
+
+            $code = $file->getContents();
+            $ast = $parser->parse($code);
+            $traverser = new NodeTraverser();
+            $visitor = new RabbitMQPublishFinder($directory);
+            $traverser->addVisitor($visitor);
+            $traverser->traverse($ast);
+            $usages = array_merge($usages, $visitor->getUsages());
+        }
+
+        return Arr::pluck($usages, 'args.1');
     }
 }
