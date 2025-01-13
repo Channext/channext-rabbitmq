@@ -32,15 +32,15 @@ class RabbitMQPublishFinder extends NodeVisitorAbstract
      */
     public function enterNode(Node $node)
     {
-        if ($node instanceof Node\Expr\StaticCall) {
-            if ($node->class instanceof Node\Name && $node->class->toString() === $this->className) {
-                if ($node->name instanceof Node\Identifier && $node->name->name === $this->methodName) {
-                    $this->usages[] = [
-                        'args' => $this->extractArguments($node->args),
-                        'line' => $node->getLine(),
-                    ];
-                }
-            }
+        if (
+            $node instanceof Node\Expr\StaticCall &&
+            $node->class instanceof Node\Name && $node->class->toString() === $this->className &&
+            $node->name instanceof Node\Identifier && $node->name->name === $this->methodName
+        ) {
+            $this->usages[] = [
+                'args' => $this->extractArguments($node->args),
+                'line' => $node->getLine(),
+            ];
         }
     }
 
