@@ -20,7 +20,9 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
  * @method static array getBindings(?string $queue = null, ?string $exchange = null, ?string $vhost = '/')
  * @method static bool deleteBinding(string $route, ?string $queue = null, ?string $exchange = null, ?string $vhost = '/')
  * @method static bool unbindUnused()
+ * @method static array getPublishers(?string $directory = 'App', ?array $exclude = [])
  **/
+
 class RabbitMQ extends Facade
 {
     /**
