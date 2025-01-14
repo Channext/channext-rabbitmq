@@ -5,7 +5,6 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
-use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
 use Closure;
 use ErrorException;
 use Exception;
