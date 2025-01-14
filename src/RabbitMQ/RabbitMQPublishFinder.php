@@ -12,21 +12,10 @@ class RabbitMQPublishFinder extends NodeVisitorAbstract
 {
     private string $className = 'RabbitMQ';
     private string $methodName = 'publish';
-
-    private string $directory;
     private array $usages = [];
 
     /**
-     * RabbitMQPublishFinder constructor.
-     * @param string $directory
-     */
-    public function __construct(string $directory = 'App')
-    {
-        $this->directory = $directory;
-    }
-
-    /**
-     * Find usages of RabbitMQ::publish() in the given directory
+     * Find usages of RabbitMQ::publish()
      *
      * @return array
      */

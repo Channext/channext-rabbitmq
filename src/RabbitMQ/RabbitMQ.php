@@ -813,7 +813,7 @@ class RabbitMQ
      *
      * @return array
      */
-    public function getPublishers(string $directory = 'App', ?array $exclude = []): array
+    public function getPublishers(string $directory = 'app', ?array $exclude = []): array
     {
         $phpVersion = PhpVersion::getHostVersion();
         $parser = (new ParserFactory())->createForVersion($phpVersion);
@@ -831,7 +831,7 @@ class RabbitMQ
             $code = $file->getContents();
             $ast = $parser->parse($code);
             $traverser = new NodeTraverser();
-            $visitor = new RabbitMQPublishFinder($directory);
+            $visitor = new RabbitMQPublishFinder();
             $traverser->addVisitor($visitor);
             $traverser->traverse($ast);
             $usages = array_merge($usages, $visitor->getUsages());
