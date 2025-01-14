@@ -5,6 +5,7 @@ namespace Channext\ChannextRabbitmq\RabbitMQ;
 use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
+use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
 use Closure;
 use ErrorException;
 use Exception;
@@ -819,6 +820,7 @@ class RabbitMQ
         $parser = (new ParserFactory())->createForVersion($phpVersion);
         $finder = new Finder();
         $finder->files()->in($directory)->name('*.php');
+        $exclude = str_ireplace($directory . '\\', $directory. '\\', $exclude);
 
         $usages = [];
         foreach ($finder as $file) {
