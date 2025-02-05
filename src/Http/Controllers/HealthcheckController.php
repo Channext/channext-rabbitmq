@@ -44,8 +44,8 @@ class HealthcheckController
             }
         }
         if ($consumerFound) {
-            return response()->json(['status' => 'healthy'], 200);
+            return response()->json(['status' => 'Healthy'], 200);
         }
-        return response()->json(['status' => 'error'], 500);
+        return response()->json(['status' => 'Missing consumer'], 500);
     }
 }
