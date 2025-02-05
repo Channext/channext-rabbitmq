@@ -36,15 +36,10 @@ class HealthcheckController
             return response()->json(['status' => 'error'], 500);
         }
         $consumers = $response->json()['consumer_details'] ?? [];
-        $consumerFound = false;
         foreach ($consumers as $consumer) {
             if (($consumer['channel_details']['peer_host'] ?? null) === $appIp) {
-                $consumerFound = true;
-                break;
+                return response()->json(['status' => 'Healthy'], 200);
             }
-        }
-        if ($consumerFound) {
-            return response()->json(['status' => 'Healthy'], 200);
         }
         return response()->json(['status' => 'Missing consumer'], 500);
     }
