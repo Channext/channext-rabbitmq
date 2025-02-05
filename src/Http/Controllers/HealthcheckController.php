@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Channext\ChannextRabbitmq\Http\Controllers;
 
-use Exception;
+use GuzzleHttp\Exception\ClientException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
-
 use function Sentry\captureException;
 
 class HealthcheckController
@@ -24,22 +24,23 @@ class HealthcheckController
         try {
             $response = Http::withBasicAuth(config('rabbitmq.user'), config('rabbitmq.password'))
                 ->get($url);
-        } catch (Exception $e) {
+        }
+        catch (ConnectionException $e) {
+            captureException($e);
+            return response()->json([
+                'status' => 'unknown',
+                'message' => 'Message broker is down.'
+            ], 200);
+        } catch (\Throwable $e) {
             captureException($e);
             return response()->json(['status' => 'error'], 500);
         }
         $consumers = $response->json()['consumer_details'] ?? [];
-        $consumerFound = false;
         foreach ($consumers as $consumer) {
             if (($consumer['channel_details']['peer_host'] ?? null) === $appIp) {
-                $consumerFound = true;
-                break;
+                return response()->json(['status' => 'Healthy'], 200);
             }
         }
-        if ($consumerFound) {
-            return response()->json(['status' => 'ok']);
-        }
-        return response()->json(['status' => 'error'], 500);
-
+        return response()->json(['status' => 'Missing consumer'], 500);
     }
 }
