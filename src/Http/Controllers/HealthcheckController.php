@@ -8,7 +8,6 @@ use GuzzleHttp\Exception\ClientException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use function Sentry\captureException;
 
 class HealthcheckController
