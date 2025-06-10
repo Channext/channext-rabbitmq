@@ -203,7 +203,7 @@ class RabbitMQ
     protected function work() : void
     {
         $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
-        while (count($this->channel->callbacks)) {
+        while (count($this->channel?->callbacks ?? []) > 0) {
             $this->channel->wait();
         }
     }
