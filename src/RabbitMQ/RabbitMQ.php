@@ -25,9 +25,11 @@ use PhpAmqpLib\Message\AMQPMessage;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
+use Sentry\Severity;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Process\Process;
 use function Sentry\captureException;
+use function Sentry\captureMessage;
 
 class RabbitMQ
 {
@@ -332,6 +334,16 @@ class RabbitMQ
             $this->initializeConnection();
             $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
+
+            $messageSize = strlen(json_encode($body));
+            if ($messageSize > 524288) { // 512 KB
+                $message = "Large RabbitMQ message body: {$messageSize} bytes for {$routingKey}";
+                if ($identifier) {
+                    $message .= " with identifier {$identifier}";
+                }
+                captureMessage($message, Severity::warning());
+            }
+
             $message = RabbitMQMessage::make($routingKey, $body, $headers);
             if (env("RABBIT_TEST", false)) {
                 return;
