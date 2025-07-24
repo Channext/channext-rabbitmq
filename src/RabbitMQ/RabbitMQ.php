@@ -79,11 +79,28 @@ class RabbitMQ
      */
     public function __destruct()
     {
+        $this->close();
+    }
+
+    /**
+     * Close connection
+     *
+     * @return void
+     */
+    private function close(): void
+    {
         try {
-            $this->channel?->close();
-            $this->connection?->close();
+            if ($this->channel && $this->channel->is_open()) {
+                $this->channel->close();
+            }
+            if ($this->connection && $this->connection->isConnected()) {
+                $this->connection->close();
+            }
         } catch (\Throwable $e) {
-            captureException($e);
+            // silent fail
+        } finally {
+            $this->channel = null;
+            $this->connection = null;
         }
     }
 
@@ -92,8 +109,9 @@ class RabbitMQ
      *
      * @return void
      */
-    private function initializeConnection(): void {
-        if(env("RABBITMQ_DISABLED", false)) return;
+    private function initializeConnection(): void
+    {
+        if (env("RABBITMQ_DISABLED", false)) return;
         try {
             $this->connection = $this->connection ?? new AMQPStreamConnection(
                 host: config('rabbitmq.host'),
@@ -121,11 +139,23 @@ class RabbitMQ
     }
 
     /**
+     * Reconnect to RabbitMQ
+     *
+     * @return void
+     */
+    private function reconnect(): void
+    {
+        $this->close();
+        $this->initializeConnection();
+    }
+
+    /**
      * Prepare listener routes
      * @param bool $test
      * @return void
      */
-    private function prepareListenerRoutes(bool $test = false): void {
+    private function prepareListenerRoutes(bool $test = false): void
+    {
         if (!$test) $this->initializeConnection();
 
         $this->defineRoutes();
@@ -139,7 +169,7 @@ class RabbitMQ
      * @param bool $retry
      * @return void
      */
-    public function route(string $route, string|array $callback, bool $retry = false) : void
+    public function route(string $route, string|array $callback, bool $retry = false): void
     {
         if (array_key_exists('#', $this->routes)) {
             if (env("APP_ENV") === 'local') Log::warning("An universal route already exists. No specific routes can be added.");
@@ -168,7 +198,7 @@ class RabbitMQ
      * @param bool $retry
      * @return void
      */
-    public function universal(string $callback, bool $retry = false) : void
+    public function universal(string $callback, bool $retry = false): void
     {
         $this->route(route: '#', callback: $callback, retry: $retry);
     }
@@ -180,9 +210,9 @@ class RabbitMQ
      * @param Command|null $logger
      * @return void
      */
-    public function consume(bool $once = false, ?Command $logger = null) : void
+    public function consume(bool $once = false, ?Command $logger = null): void
     {
-        if(env("RABBITMQ_CONSUME_DISABLED", false)) return;
+        if (env("RABBITMQ_CONSUME_DISABLED", false)) return;
         if (!self::$logger) self::$logger = $logger;
         if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
         $this->prepareListenerRoutes();
@@ -202,11 +232,17 @@ class RabbitMQ
      * @return void
      * @throws AMQPIOException
      */
-    protected function work() : void
+    protected function work(): void
     {
         $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
         while (count($this->channel?->callbacks ?? []) > 0) {
-            $this->channel->wait();
+            try {
+                $this->channel->wait();
+            } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
+                $this->logLocalErrors($e);
+                $this->reconnect();
+                $this->work(); // retry consuming
+            }
         }
     }
 
@@ -218,7 +254,8 @@ class RabbitMQ
      * @throws AMQPIOException
      * @throws Exception
      */
-    private function waitToConsume(string $consumerTag): void {
+    private function waitToConsume(string $consumerTag): void
+    {
         $this->checkConnection();
         while ($this->channel->is_consuming()) {
             try {
@@ -235,8 +272,6 @@ class RabbitMQ
         }
     }
 
-
-
     /**
      * @throws AMQPChannelClosedException
      * @throws AMQPConnectionClosedException
@@ -244,11 +279,24 @@ class RabbitMQ
      */
     private function checkConnection()
     {
-        if ($this->connection === null || !$this->connection->isConnected()) {
-            throw new AMQPChannelClosedException('Channel connection is closed.');
-        }
-        if ($this->connection->isBlocked()) {
-            throw new AMQPConnectionBlockedException();
+        try {
+            // Reconnect if connection is missing or closed
+            if ($this->connection === null || !$this->connection->isConnected()) {
+                throw new AMQPConnectionClosedException('RabbitMQ connection is closed.');
+            }
+
+            // Check for blocked connection
+            if ($this->connection->isBlocked()) {
+                throw new AMQPConnectionBlockedException('RabbitMQ connection is blocked.');
+            }
+
+            // Reconnect if channel is missing or closed
+            if ($this->channel === null || !$this->channel->is_open()) {
+                throw new AMQPChannelClosedException('RabbitMQ channel is closed.');
+            }
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            $this->reconnect();
         }
     }
 
@@ -257,7 +305,7 @@ class RabbitMQ
      *
      * @return void
      */
-    protected function listen() : void
+    protected function listen(): void
     {
         $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
         if ($message) $this->callback($message);
@@ -267,7 +315,7 @@ class RabbitMQ
      * Returns true if there is a message in the queue
      * @return bool
      */
-    public function hasMessage() : bool
+    public function hasMessage(): bool
     {
         return (bool) $this->channel?->queue_declare(
             queue: config('rabbitmq.queue'),
@@ -282,7 +330,7 @@ class RabbitMQ
      *
      * @return void
      */
-    public function purge() : void
+    public function purge(): void
     {
         $this->channel?->queue_purge(queue: config('rabbitmq.queue'));
     }
@@ -300,7 +348,7 @@ class RabbitMQ
             return;
         }
         try {
-            $this->initializeConnection();
+            $this->checkConnection();
             $this->channel?->queue_declare(
                 queue: $queue,
                 durable: true,
@@ -327,11 +375,11 @@ class RabbitMQ
      * @param array $headers
      * @return void
      */
-    public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []) : void
+    public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []): void
     {
-        if(env("RABBITMQ_PUBLISH_DISABLED", false)) return;
+        if (env("RABBITMQ_PUBLISH_DISABLED", false)) return;
         try {
-            $this->initializeConnection();
+            $this->checkConnection();
             $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
 
@@ -359,7 +407,7 @@ class RabbitMQ
             return;
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
-            captureException($e);
+            $this->captureExceptionWithScope($e, $body);
             return;
         }
     }
@@ -370,7 +418,7 @@ class RabbitMQ
      * @param string $route
      * @return array
      */
-    public function resolveRouteData(string $route) : array
+    public function resolveRouteData(string $route): array
     {
         if (array_key_exists('#', $this->routes)) {
             return $this->routes['#'];
@@ -384,7 +432,7 @@ class RabbitMQ
      * @param AMQPMessage $message
      * @return void
      */
-    public function callback(AMQPMessage $message) : void
+    public function callback(AMQPMessage $message): void
     {
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
@@ -398,10 +446,9 @@ class RabbitMQ
                 controller: $action['controller'],
                 method: $action['method'],
                 message: $message,
-                retry: $retry)
-            ;
-        }
-        else {
+                retry: $retry
+            );
+        } else {
             if (env("APP_ENV") === 'local') Log::error("No callback found for route $route");
             $this->captureExceptionWithScope(new Exception("No callback found for route $route"), $data);
             $this->acknowledgeMessage($message);
@@ -416,7 +463,8 @@ class RabbitMQ
      * @param array $messagePayload
      * @return void
      */
-    protected function setAuthUser($messagePayload) : void {
+    protected function setAuthUser($messagePayload): void
+    {
         $user = null;
         if ($userData = $messagePayload['x-user'] ?? null) {
             try {
@@ -440,7 +488,7 @@ class RabbitMQ
      * @param Closure $callback
      * @return void
      */
-    public function setAuthUserCallback(Closure $callback) : void
+    public function setAuthUserCallback(Closure $callback): void
     {
         $this->authUserCallback = $callback;
     }
@@ -453,7 +501,7 @@ class RabbitMQ
      * @param Closure $callback
      * @return void
      */
-    public function setSerializeAuthUserCallback(Closure $callback) : void
+    public function setSerializeAuthUserCallback(Closure $callback): void
     {
         $this->serializeAuthUserCallback = $callback;
     }
@@ -466,7 +514,7 @@ class RabbitMQ
      * @param Closure $callback
      * @return void
      */
-    public function setOnFailCallback(Closure $callback) : void
+    public function setOnFailCallback(Closure $callback): void
     {
         $this->onFailCallback = $callback;
     }
@@ -482,7 +530,7 @@ class RabbitMQ
      * @param array $body
      * @return array
      */
-    protected function setUserData(array $body) : array
+    protected function setUserData(array $body): array
     {
         try {
             $serializeAuthUserCallback = app('EventAuth')?->serializeAuthUserCallback;
@@ -501,14 +549,13 @@ class RabbitMQ
      * @param string|array $callback
      * @return array
      */
-    protected function createAction(string|array $callback) : array
+    protected function createAction(string|array $callback): array
     {
         $action = [];
         if (is_array($callback)) {
             $action['controller'] = $this->createController(controller: $callback[0]);
             $action['method'] = $callback[1];
-        }
-        else if (str_contains($callback, '@')) {
+        } else if (str_contains($callback, '@')) {
             $controller = strtok(string: $callback, token: '@');
             $action['controller'] = $this->createController(controller: $controller);
             $action['method'] = strtok(string: '');
@@ -522,7 +569,7 @@ class RabbitMQ
      * @param mixed $controller
      * @return mixed
      */
-    protected function createController(mixed $controller) : mixed
+    protected function createController(mixed $controller): mixed
     {
         if (class_exists($controller)) {
             return app($controller);
@@ -556,7 +603,7 @@ class RabbitMQ
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             $this->onFail($message, $e, $retry);
-            if($test) throw $e;
+            if ($test) throw $e;
         }
         if (!$test) {
             $this->acknowledgeMessage($message);
@@ -569,7 +616,7 @@ class RabbitMQ
      * @param AMQPMessage $message
      * @return void
      */
-    protected function acknowledgeMessage(AMQPMessage $message) : void
+    protected function acknowledgeMessage(AMQPMessage $message): void
     {
         try {
             $message->ack();
@@ -606,7 +653,8 @@ class RabbitMQ
      * @param Exception $e
      * @param array $data
      */
-    private function captureExceptionWithScope(\Throwable $e, array $data): void {
+    private function captureExceptionWithScope(\Throwable $e, array $data): void
+    {
         \Sentry\withScope(function (\Sentry\State\Scope $scope) use ($e, $data) {
             if ($e instanceof ValidationException) {
                 $data['x-errors'] = $e->errors();
@@ -706,7 +754,7 @@ class RabbitMQ
         $stalePolls = $options['routeRefresh'] ?? 50;
 
         $counter = 0;
-        while(true) {
+        while (true) {
             if ($this->hasMessage() || ++$counter > $stalePolls) {
                 $counter = 0;
                 $process = $this->makeProcess($options, $path);
@@ -743,7 +791,8 @@ class RabbitMQ
         }
     }
 
-    private function consoleLog(string $s): void {
+    private function consoleLog(string $s): void
+    {
         if (env("APP_ENV") === 'local' && self::$logger) {
             self::$logger->info($s);
         }
@@ -805,7 +854,7 @@ class RabbitMQ
      */
     public function unbindUnused(): void
     {
-        $activeBindings = array_map(fn ($binding) => $binding['routing_key'], $this->getBindings());
+        $activeBindings = array_map(fn($binding) => $binding['routing_key'], $this->getBindings());
         $this->defineRoutes();
         $definedRoutes = $this->getDefinedRoutes();
         // if global # is defined then remove all other bindings
@@ -817,7 +866,6 @@ class RabbitMQ
         foreach ($inactiveBindings as $inactiveBinding) {
             $this->deleteBinding($inactiveBinding);
         }
-
     }
 
     /**
@@ -831,7 +879,7 @@ class RabbitMQ
         $parser = (new ParserFactory())->createForVersion($phpVersion);
         $finder = new Finder();
         $finder->files()->in($directory)->name('*.php');
-        $exclude = str_ireplace($directory . '\\', $directory. '\\', $exclude);
+        $exclude = str_ireplace($directory . '\\', $directory . '\\', $exclude);
 
         $usages = [];
         foreach ($finder as $file) {
