@@ -6,7 +6,6 @@ use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
 use Closure;
-use ErrorException;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
@@ -118,7 +117,8 @@ class RabbitMQ
                 port: config('rabbitmq.port'),
                 user: config('rabbitmq.user'),
                 password: config('rabbitmq.password'),
-                vhost: config('rabbitmq.vhost', '/')
+                vhost: config('rabbitmq.vhost', '/'),
+                heartbeat: config('rabbitmq.heartbeat', 60),
             );
             $this->channel = $this->channel ?? $this->connection?->channel();
             $this->channel?->exchange_declare(

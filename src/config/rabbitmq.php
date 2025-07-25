@@ -23,4 +23,5 @@ return [
     'exchange' => env('RABBITMQ_EXCHANGE', 'events_stream'),
     'queue' => env('RABBITMQ_QUEUE', 'notifications'),
     'api' => env('RABBITMQ_API', env('RABBITMQ_HOST', 'rabbitmq') . '/api'),
+    'heartbeat' => env('RABBITMQ_HEARTBEAT', 60),
 ];
