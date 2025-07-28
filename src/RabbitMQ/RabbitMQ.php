@@ -252,8 +252,14 @@ class RabbitMQ
      */
     private function keepAlive(): void
     {
-        $sender = new PCNTLHeartbeatSender($this->connection);
-        $sender->register();
+        try {
+            $sender = new PCNTLHeartbeatSender($this->connection);
+            $sender->register();
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            $this->reconnect();
+            $this->keepAlive(); // retry keep alive
+        }
     }
 
     /**
