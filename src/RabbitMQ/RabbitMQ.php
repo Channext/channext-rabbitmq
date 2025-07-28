@@ -251,7 +251,6 @@ class RabbitMQ
     {
         $this->initializeConnection();
         try {
-            throw new AMQPConnectionClosedException("test");
             $sender = new PCNTLHeartbeatSender($this->connection);
             $sender->register();
         } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
