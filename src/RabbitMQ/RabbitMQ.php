@@ -228,7 +228,10 @@ class RabbitMQ
      */
     public function consume(bool $once = false, ?Command $logger = null): void
     {
+        // always keep connection alive even if not consuming
+        $this->keepAlive();
         if (env("RABBITMQ_CONSUME_DISABLED", false)) return;
+
         if (!self::$logger) self::$logger = $logger;
         if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
         $this->prepareListenerRoutes();
@@ -247,17 +250,10 @@ class RabbitMQ
      *
      * @return void
      */
-    public function keepAlive(): void
+    private function keepAlive(): void
     {
-        $this->initializeConnection();
-        try {
-            $sender = new PCNTLHeartbeatSender($this->connection);
-            $sender->register();
-        } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
-            $this->logLocalErrors($e);
-            $this->reconnect();
-            $this->keepAlive(); // retry keep alive
-        }
+        $sender = new PCNTLHeartbeatSender($this->connection);
+        $sender->register();
     }
 
     /**
