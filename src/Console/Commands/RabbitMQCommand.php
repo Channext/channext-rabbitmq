@@ -43,6 +43,10 @@ class RabbitMQCommand extends Command
         $once = $this->option('once');
         $info = $this->option('info');
 
-        RabbitMQ::consume($once, $info ? $this : null);
+        if (env("RABBITMQ_CONSUME_DISABLED", false)) {
+            RabbitMQ::keepAlive();
+        } else {
+            RabbitMQ::consume($once, $info ? $this : null);
+        }
     }
 }

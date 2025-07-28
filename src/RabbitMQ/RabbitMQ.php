@@ -21,6 +21,7 @@ use PhpAmqpLib\Exception\AMQPIOException;
 use PhpAmqpLib\Exception\AMQPNoDataException;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
+use PhpAmqpLib\Connection\Heartbeat\PCNTLHeartbeatSender;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
@@ -48,6 +49,16 @@ class RabbitMQ
     private int $deliveryMode = AMQPMessage::DELIVERY_MODE_PERSISTENT;
 
     /**
+     * @var int $reconnectAttempts
+     */
+    private int $reconnectAttempts = 0;
+
+    /**
+     * @var int $maxReconnectAttempts
+     */
+    private const MAX_RECONNECT_ATTEMPTS = 3;
+
+    /**
      * @var array $routes
      */
     private array $routes = [];
@@ -57,7 +68,6 @@ class RabbitMQ
     private static Command|null $logger = null;
     private bool $test = false;
     private static ?RabbitMQMessage $currentMessage = null;
-
 
     /**
      * RabbitMQ constructor.
@@ -133,6 +143,7 @@ class RabbitMQ
                 auto_delete: false,
                 arguments: ['x-max-priority' => array('I', 5)]
             );
+            $this->reconnectAttempts = 0;
         } catch (\Throwable $e) {
             captureException($e);
         }
@@ -145,8 +156,13 @@ class RabbitMQ
      */
     private function reconnect(): void
     {
-        $this->close();
-        $this->initializeConnection();
+        if ($this->reconnectAttempts < self::MAX_RECONNECT_ATTEMPTS) {
+            $this->close();
+            $this->initializeConnection();
+            $this->reconnectAttempts++;
+        } else {
+            throw new Exception("Max reconnect attempts reached");
+        }
     }
 
     /**
@@ -223,6 +239,25 @@ class RabbitMQ
             $this->logLocalErrors($e);
             $this->flush();
             captureException($e);
+        }
+    }
+
+    /**
+     * Keep connection alive
+     *
+     * @return void
+     */
+    public function keepAlive(): void
+    {
+        $this->initializeConnection();
+        try {
+            throw new AMQPConnectionClosedException("test");
+            $sender = new PCNTLHeartbeatSender($this->connection);
+            $sender->register();
+        } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
+            $this->logLocalErrors($e);
+            $this->reconnect();
+            $this->keepAlive(); // retry keep alive
         }
     }
 
