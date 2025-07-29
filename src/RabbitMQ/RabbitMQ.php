@@ -166,18 +166,6 @@ class RabbitMQ
     }
 
     /**
-     * Prepare listener routes
-     * @param bool $test
-     * @return void
-     */
-    private function prepareListenerRoutes(bool $test = false): void
-    {
-        if (!$test) $this->initializeConnection();
-
-        $this->defineRoutes();
-    }
-
-    /**
      * Define routing key and bind it to a queue
      *
      * @param string $route
@@ -230,11 +218,13 @@ class RabbitMQ
     {
         // always keep connection alive even if not consuming
         $this->keepAlive();
+
         if (env("RABBITMQ_CONSUME_DISABLED", false)) return;
 
         if (!self::$logger) self::$logger = $logger;
         if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
-        $this->prepareListenerRoutes();
+
+        $this->defineRoutes();
         try {
             if ($once) $this->listen();
             else $this->work();
@@ -252,11 +242,14 @@ class RabbitMQ
      */
     private function keepAlive(): void
     {
+        $this->initializeConnection();
+
         try {
             $sender = new PCNTLHeartbeatSender($this->connection);
             $sender->register();
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
+            captureException($e);
             $this->reconnect();
             $this->keepAlive(); // retry keep alive
         }
@@ -739,7 +732,7 @@ class RabbitMQ
      */
     public function test(string $route, RabbitMQMessage $message): void
     {
-        $this->prepareListenerRoutes(true);
+        $this->defineRoutes();
         $this->createCallback(
             controller: $this->routes[$route][0]['controller'],
             method: $this->routes[$route][0]['method'],
@@ -827,6 +820,12 @@ class RabbitMQ
         }
     }
 
+    /**
+     * Console log
+     *
+     * @param string $s
+     * @return void
+     */
     private function consoleLog(string $s): void
     {
         if (env("APP_ENV") === 'local' && self::$logger) {
@@ -834,6 +833,11 @@ class RabbitMQ
         }
     }
 
+    /**
+     * Define routes
+     *
+     * @return void
+     */
     private function defineRoutes(): void
     {
         if (file_exists(base_path('routes/topics.php'))) {
