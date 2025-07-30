@@ -244,6 +244,10 @@ class RabbitMQ
     {
         $this->initializeConnection();
 
+        $heartbeat = (int) config('rabbitmq.heartbeat', 60);
+
+        if ($heartbeat <= 0) return;
+
         try {
             $sender = new PCNTLHeartbeatSender($this->connection);
             $sender->register();
