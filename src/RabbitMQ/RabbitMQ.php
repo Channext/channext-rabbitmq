@@ -225,14 +225,8 @@ class RabbitMQ
         if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
 
         $this->defineRoutes();
-        try {
-            if ($once) $this->listen();
-            else $this->work();
-        } catch (\Throwable $e) {
-            $this->logLocalErrors($e);
-            $this->flush();
-            captureException($e);
-        }
+        if ($once) $this->listen();
+        else $this->work();
     }
 
     /**
@@ -271,7 +265,12 @@ class RabbitMQ
         while (count($this->channel?->callbacks ?? []) > 0) {
             try {
                 $this->channel->wait();
-            } catch (AMQPConnectionClosedException | AMQPChannelClosedException $e) {
+            } catch (
+                AMQPConnectionClosedException |
+                AMQPChannelClosedException |
+                AMQPIOException |
+                AMQPTimeoutException $e
+            ) {
                 $this->logLocalErrors($e);
                 $this->reconnect();
                 $this->work(); // retry consuming
