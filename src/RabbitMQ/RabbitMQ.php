@@ -237,6 +237,10 @@ class RabbitMQ
      */
     private function keepAlive(): void
     {
+        if (env("RABBIT_TEST", false)) {
+            return;
+        }
+
         $this->initializeConnection();
 
         $heartbeat = (int) config('rabbitmq.heartbeat', 60);
@@ -412,7 +416,6 @@ class RabbitMQ
     {
         if (env("RABBITMQ_PUBLISH_DISABLED", false)) return;
         try {
-            $this->checkConnection();
             $headers['x-identifier'] = $identifier;
             $headers = $this->setUserData($headers);
 
@@ -429,6 +432,7 @@ class RabbitMQ
             if (env("RABBIT_TEST", false)) {
                 return;
             }
+            $this->checkConnection();
             $this->channel?->basic_publish(
                 msg: $message->getOriginalMessage(),
                 exchange: config('rabbitmq.exchange'),
