@@ -15,7 +15,6 @@ class RabbitMQMessage extends AMQPMessage
 {
     private array $decodedBody;
     private AMQPMessage $originalMessage;
-    private static int $priority = 3;
     public function __construct(AMQPMessage $message)
     {
         parent::__construct(
@@ -29,23 +28,20 @@ class RabbitMQMessage extends AMQPMessage
 
     /**
      * @param array $data
-     * @param ?int $priority
      * @return AMQPMessage
      */
-    private static function setPayload(array $data, ?int $priority = null): AMQPMessage
+    private static function setPayload(array $data): AMQPMessage
     {
-        $priority = $priority ?? self::$priority;
         $encoded = json_encode($data);
         return new AMQPMessage(body: $encoded, properties: [
             'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT,
-            'priority' => $priority
         ]);
     }
 
     /**
      * @return string
      */
-    public function __toString() : string
+    public function __toString(): string
     {
         return print_r([
             'body' => $this->all(),
@@ -56,7 +52,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return AMQPMessage
      */
-    public function getOriginalMessage() : AMQPMessage
+    public function getOriginalMessage(): AMQPMessage
     {
         return $this->originalMessage;
     }
@@ -64,7 +60,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return array
      */
-    public function all() : array
+    public function all(): array
     {
         return $this->decodedBody['x-data'];
     }
@@ -73,7 +69,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param $keys
      * @return array
      */
-    public function only($keys) : array
+    public function only($keys): array
     {
         $data = $this->decodedBody['x-data'];
         return array_intersect_key($data, array_flip((array) $keys));
@@ -83,7 +79,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param $keys
      * @return array
      */
-    public function except($keys) : array
+    public function except($keys): array
     {
         $data = $this->decodedBody['x-data'];
         return array_diff_key($data, array_flip((array) $keys));
@@ -94,7 +90,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param $default
      * @return mixed
      */
-    public function get($key, $default = null) : mixed
+    public function get($key, $default = null): mixed
     {
         $data = $this->decodedBody['x-data'] ?? [];
         return $data[$key] ?? $default;
@@ -103,7 +99,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return array|null
      */
-    public function user() : ?array
+    public function user(): ?array
     {
         return $this->decodedBody['x-user'] ?? null;
     }
@@ -111,7 +107,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string|int|null
      */
-    public function identifier() : string|int|null
+    public function identifier(): string|int|null
     {
         return $this->decodedBody['x-identifier'] ?? null;
     }
@@ -119,7 +115,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string|null
      */
-    public function publishedAt() : ?string
+    public function publishedAt(): ?string
     {
         return $this->decodedBody['x-published-at'] ?? null;
     }
@@ -127,7 +123,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string|null
      */
-    public function getRoutingKey() : ?string
+    public function getRoutingKey(): ?string
     {
         return $this->decodedBody['x-routing-key'] ?? $this->originalMessage->getRoutingKey();
     }
@@ -135,7 +131,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return bool
      */
-    public function isRetried() : bool
+    public function isRetried(): bool
     {
         return (bool) ($this->decodedBody['x-retry-state'] ?? 0);
     }
@@ -143,7 +139,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string|null
      */
-    public function getTraceId() : ?string
+    public function getTraceId(): ?string
     {
         return $this->decodedBody['x-trace-id'] ?? null;
     }
@@ -151,7 +147,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return array
      */
-    public function getTrace() : array
+    public function getTrace(): array
     {
         return $this->decodedBody['x-trace'] ?? [];
     }
@@ -161,7 +157,7 @@ class RabbitMQMessage extends AMQPMessage
      * @param $default
      * @return mixed
      */
-    public function header($key = null, $default = null) : mixed
+    public function header($key = null, $default = null): mixed
     {
         return $this->decodedBody[$key] ?? $default;
     }
@@ -169,7 +165,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return array
      */
-    public function headers() : array
+    public function headers(): array
     {
         $headers = [];
 
@@ -181,17 +177,16 @@ class RabbitMQMessage extends AMQPMessage
         if (isset($this->decodedBody['x-trace-id'])) $headers['x-trace-id'] = $this->decodedBody['x-trace-id'];
         if (isset($this->decodedBody['x-trace'])) $headers['x-trace'] = $this->decodedBody['x-trace'];
         if (isset($this->decodedBody['x-origin'])) $headers['x-origin'] = $this->decodedBody['x-origin'];
-        if (isset($this->decodedBody['x-priority'])) $headers['x-priority'] = $this->decodedBody['x-priority'];
 
         return  $headers;
     }
 
-//    public function set
+    //    public function set
 
     /**
      * @return int
      */
-    public function getDeliveryTag() : int
+    public function getDeliveryTag(): int
     {
         return $this->originalMessage->getDeliveryTag();
     }
@@ -199,7 +194,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string
      */
-    public function getConsumerTag() : string
+    public function getConsumerTag(): string
     {
         return $this->originalMessage->getConsumerTag();
     }
@@ -207,7 +202,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return bool
      */
-    public function isRedelivered() : bool
+    public function isRedelivered(): bool
     {
         return $this->originalMessage->isRedelivered();
     }
@@ -215,7 +210,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return string
      */
-    public function getExchange() : string
+    public function getExchange(): string
     {
         return $this->originalMessage->getExchange();
     }
@@ -223,7 +218,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return int
      */
-    public function getMessageCount() : int
+    public function getMessageCount(): int
     {
         return $this->originalMessage->getMessageCount();
     }
@@ -231,7 +226,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return AMQPChannel
      */
-    public function getChannel() : AMQPChannel
+    public function getChannel(): AMQPChannel
     {
         return $this->originalMessage->getChannel();
     }
@@ -239,7 +234,7 @@ class RabbitMQMessage extends AMQPMessage
     /**
      * @return array
      */
-    public function getDeliveryInfo() : array
+    public function getDeliveryInfo(): array
     {
         return $this->originalMessage->getDeliveryInfo();
     }
@@ -270,11 +265,11 @@ class RabbitMQMessage extends AMQPMessage
     private function replaceValidated(array $validated, array $replacements): array
     {
         foreach ($replacements as $key => $replacement) {
-            if(!Arr::has($validated, $key)) continue;
-            if(Arr::get($validated, $replacement) !== null) continue;
+            if (!Arr::has($validated, $key)) continue;
+            if (Arr::get($validated, $replacement) !== null) continue;
             $value = Arr::get($validated, $key);
-            Arr::set($validated , $replacement, $value);
-            Arr::forget($validated , $key, $value);
+            Arr::set($validated, $replacement, $value);
+            Arr::forget($validated, $key, $value);
         }
         return $validated;
     }
@@ -285,17 +280,15 @@ class RabbitMQMessage extends AMQPMessage
      * @param string $routingKey
      * @param array $data
      * @param array $headers
-     * @param int|null $priority
      * @return RabbitMQMessage
      * @throws EventLoopException
      */
-    public static function make(string $routingKey, array $data, array $headers = [], ?int $priority = null): RabbitMQMessage
+    public static function make(string $routingKey, array $data, array $headers = []): RabbitMQMessage
     {
 
         $headers = self::addHeaders($routingKey, $headers);
         $headers['x-data'] = $data;
-        if ($priority) $headers['x-priority'] = $priority;
-        $message = self::setPayload($headers, $priority);
+        $message = self::setPayload($headers);
         return new RabbitMQMessage($message);
     }
 
@@ -310,7 +303,7 @@ class RabbitMQMessage extends AMQPMessage
         $data = $this->decodedBody;
         $data['x-routing-key'] = $routingKey;
         $this->decodedBody = $data;
-        self::setPayload($data, $data['x-priority'] ?? null);
+        self::setPayload($data);
     }
 
 
@@ -325,7 +318,7 @@ class RabbitMQMessage extends AMQPMessage
         $data = $this->decodedBody;
         $data['x-user'] = $userData;
         $this->decodedBody = $data;
-        self::setPayload($data, $data['x-priority'] ?? null);
+        self::setPayload($data);
     }
 
 
@@ -345,8 +338,7 @@ class RabbitMQMessage extends AMQPMessage
         if (!$retry && RabbitMQFacade::current()) {
             $trace = RabbitMQFacade::current()->getTrace();
             $trace[RabbitMQFacade::current()->getRoutingKey()] = RabbitMQFacade::current()->getTraceId();
-        }
-        else if ($retry) {
+        } else if ($retry) {
             $trace = $body['x-trace'] ?? [];
         }
 
@@ -360,5 +352,4 @@ class RabbitMQMessage extends AMQPMessage
         $body['x-origin'] = env('APP_NAME', env('RABBITMQ_QUEUE', 'unknown'));
         return $body;
     }
-
 }

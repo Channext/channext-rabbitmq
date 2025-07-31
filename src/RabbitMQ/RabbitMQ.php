@@ -141,7 +141,6 @@ class RabbitMQ
                 queue: config('rabbitmq.queue'),
                 durable: true,
                 auto_delete: false,
-                arguments: ['x-max-priority' => array('I', 5)]
             );
             $this->reconnectAttempts = 0;
         } catch (\Throwable $e) {
@@ -390,7 +389,6 @@ class RabbitMQ
                 queue: $queue,
                 durable: true,
                 auto_delete: false,
-                arguments: ['x-max-priority' => array('I', 5)]
             );
             $this->channel?->basic_publish(
                 msg: $message->getOriginalMessage(),
