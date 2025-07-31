@@ -44,11 +44,6 @@ class RabbitMQ
     private ?AMQPChannel $channel = null;
 
     /**
-     * @var int $deliveryMode
-     */
-    private int $deliveryMode = AMQPMessage::DELIVERY_MODE_PERSISTENT;
-
-    /**
      * @var int $reconnectAttempts
      */
     private int $reconnectAttempts = 0;
@@ -57,6 +52,11 @@ class RabbitMQ
      * @var int $maxReconnectAttempts
      */
     private const MAX_RECONNECT_ATTEMPTS = 3;
+
+    /**
+     * @var int $reconnectDelay
+     */
+    private int $reconnectDelay = 5;
 
     /**
      * @var array $routes
@@ -156,6 +156,7 @@ class RabbitMQ
      */
     private function reconnect(): void
     {
+        sleep($this->reconnectDelay);
         if ($this->reconnectAttempts < self::MAX_RECONNECT_ATTEMPTS) {
             $this->close();
             $this->initializeConnection();
