@@ -59,6 +59,11 @@ class RabbitMQ
     private int $reconnectDelay = 5;
 
     /**
+     * @var int $heartbeatRegistered
+     */
+    private bool $heartbeatRegistered = false;
+
+    /**
      * @var array $routes
      */
     private array $routes = [];
@@ -244,14 +249,16 @@ class RabbitMQ
 
         $heartbeat = (int) config('rabbitmq.heartbeat', 60);
 
-        if ($heartbeat <= 0) return;
+        if ($heartbeat <= 0 || $this->heartbeatRegistered) return;
 
         try {
             $sender = new PCNTLHeartbeatSender($this->connection);
             $sender->register();
+            $this->heartbeatRegistered = true;
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             captureException($e);
+            $this->heartbeatRegistered = false;
             $this->reconnect();
             $this->keepAlive(); // retry keep alive
         }
