@@ -234,7 +234,7 @@ class RabbitMQ
      *
      * @return void
      */
-    private function keepAlive(): void
+    public function keepAlive(): void
     {
         if (env("RABBIT_TEST", false)) {
             return;
