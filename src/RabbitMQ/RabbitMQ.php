@@ -222,7 +222,7 @@ class RabbitMQ
     {
         $this->checkConnection();
 
-        if (env("RABBITMQ_CONSUME_DISABLED", false)) return;
+        if (env("RABBITMQ_CONSUMER_DISABLED", false)) return;
 
         if (!self::$logger) self::$logger = $logger;
         if (!$once) $this->consoleLog("Consuming messages for " . config('rabbitmq.queue'));
