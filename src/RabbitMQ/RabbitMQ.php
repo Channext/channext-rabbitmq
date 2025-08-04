@@ -21,7 +21,6 @@ use PhpAmqpLib\Exception\AMQPIOException;
 use PhpAmqpLib\Exception\AMQPNoDataException;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
-use PhpAmqpLib\Connection\Heartbeat\PCNTLHeartbeatSender;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PhpParser\PhpVersion;
@@ -221,8 +220,7 @@ class RabbitMQ
      */
     public function consume(bool $once = false, ?Command $logger = null): void
     {
-        // always keep connection alive even if not consuming
-        $this->keepAlive();
+        $this->checkConnection();
 
         if (env("RABBITMQ_CONSUME_DISABLED", false)) return;
 
@@ -232,36 +230,6 @@ class RabbitMQ
         $this->defineRoutes();
         if ($once) $this->listen();
         else $this->work();
-    }
-
-    /**
-     * Keep connection alive
-     *
-     * @return void
-     */
-    public function keepAlive(): void
-    {
-        if (env("RABBIT_TEST", false)) {
-            return;
-        }
-
-        $this->initializeConnection();
-
-        $heartbeat = (int) config('rabbitmq.heartbeat', 60);
-
-        if ($heartbeat <= 0 || $this->heartbeatRegistered) return;
-
-        try {
-            $sender = new PCNTLHeartbeatSender($this->connection);
-            $sender->register();
-            $this->heartbeatRegistered = true;
-        } catch (\Throwable $e) {
-            $this->logLocalErrors($e);
-            captureException($e);
-            $this->heartbeatRegistered = false;
-            $this->reconnect();
-            $this->keepAlive(); // retry keep alive
-        }
     }
 
     /**
@@ -320,7 +288,7 @@ class RabbitMQ
      * @throws AMQPConnectionClosedException
      * @throws AMQPConnectionBlockedException
      */
-    private function checkConnection()
+    public function checkConnection()
     {
         try {
             // Reconnect if connection is missing or closed
