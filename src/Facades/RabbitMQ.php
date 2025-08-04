@@ -22,6 +22,7 @@ use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQ as BaseRabbitMQ;
  * @method static bool unbindUnused()
  * @method static array getPublishers(?string $directory = 'app', ?array $exclude = [])
  * @method static void checkConnection()
+ * @method static void keepAlive()
  **/
 
 class RabbitMQ extends Facade

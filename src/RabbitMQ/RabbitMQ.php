@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PhpAmqpLib\Channel\AMQPChannel;
+use PhpAmqpLib\Connection\Heartbeat\PCNTLHeartbeatSender;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exception\AMQPChannelClosedException;
 use PhpAmqpLib\Exception\AMQPConnectionBlockedException;
@@ -220,7 +221,7 @@ class RabbitMQ
      */
     public function consume(bool $once = false, ?Command $logger = null): void
     {
-        $this->checkConnection();
+        $this->keepAlive();
 
         if (env("RABBITMQ_CONSUMER_DISABLED", false)) return;
 
@@ -280,6 +281,36 @@ class RabbitMQ
             } catch (AMQPNoDataException $exception) {
                 // no data, just continue
             }
+        }
+    }
+
+    /**
+     * Keep connection alive
+     *
+     * @return void
+     */
+    public function keepAlive(): void
+    {
+        if (env("RABBIT_TEST", false)) {
+            return;
+        }
+
+        $this->initializeConnection();
+
+        $heartbeat = (int) config('rabbitmq.heartbeat', 60);
+
+        if ($heartbeat <= 0 || $this->heartbeatRegistered) return;
+
+        try {
+            $sender = new PCNTLHeartbeatSender($this->connection);
+            $sender->register();
+            $this->heartbeatRegistered = true;
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            captureException($e);
+            $this->heartbeatRegistered = false;
+            $this->reconnect();
+            $this->keepAlive(); // retry keep alive
         }
     }
 
