@@ -220,6 +220,8 @@ class RabbitMQ
      */
     public function consume(bool $once = false, ?Command $logger = null): void
     {
+        $this->checkConnection();
+
         if (env("RABBITMQ_CONSUMER_DISABLED", false)) return;
 
         if (!self::$logger) self::$logger = $logger;
