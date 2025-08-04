@@ -58,11 +58,6 @@ class RabbitMQ
     private int $reconnectDelay = 5;
 
     /**
-     * @var int $heartbeatRegistered
-     */
-    private bool $heartbeatRegistered = false;
-
-    /**
      * @var array $routes
      */
     private array $routes = [];
@@ -388,37 +383,50 @@ class RabbitMQ
     public function publish(array $body, string $routingKey, string|int $identifier = null, array $headers = []): void
     {
         if (env("RABBITMQ_PUBLISH_DISABLED", false)) return;
+        $headers['x-identifier'] = $identifier;
+        $headers = $this->setUserData($headers);
+
+        $messageSize = strlen(json_encode($body));
+        if ($messageSize > 524288) { // 512 KB
+            $message = "Large RabbitMQ message body: {$messageSize} bytes for {$routingKey}";
+            if ($identifier) {
+                $message .= " with identifier {$identifier}";
+            }
+            captureMessage($message, Severity::warning());
+        }
+
+        $message = RabbitMQMessage::make($routingKey, $body, $headers);
+        if (env("RABBIT_TEST", false)) {
+            return;
+        }
+
+        $this->attemptPublish($message, $routingKey, $body);
+    }
+
+    /**
+     * Handles retry logic for publishing without regenerating the message.
+     *
+     * @param RabbitMQMessage $message
+     * @param string $routingKey
+     * @param array $body
+     * @return void
+     */
+    private function attemptPublish(RabbitMQMessage $message, string $routingKey, array $body): void
+    {
         try {
-            $headers['x-identifier'] = $identifier;
-            $headers = $this->setUserData($headers);
-
-            $messageSize = strlen(json_encode($body));
-            if ($messageSize > 524288) { // 512 KB
-                $message = "Large RabbitMQ message body: {$messageSize} bytes for {$routingKey}";
-                if ($identifier) {
-                    $message .= " with identifier {$identifier}";
-                }
-                captureMessage($message, Severity::warning());
-            }
-
-            $message = RabbitMQMessage::make($routingKey, $body, $headers);
-            if (env("RABBIT_TEST", false)) {
-                return;
-            }
             $this->checkConnection();
             $this->channel?->basic_publish(
                 msg: $message->getOriginalMessage(),
                 exchange: config('rabbitmq.exchange'),
                 routing_key: $routingKey
             );
-        } catch (EventLoopException $e) {
+        } catch (AMQPConnectionClosedException | AMQPChannelClosedException | AMQPIOException | AMQPTimeoutException $e) {
             $this->logLocalErrors($e);
-            $this->captureExceptionWithScope($e, $body);
-            return;
+            $this->reconnect();
+            $this->attemptPublish($message, $routingKey, $body); // retry without regenerating
         } catch (\Throwable $e) {
             $this->logLocalErrors($e);
             $this->captureExceptionWithScope($e, $body);
-            return;
         }
     }
 
