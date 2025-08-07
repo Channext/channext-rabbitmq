@@ -154,14 +154,17 @@ class RabbitMQ
      */
     private function reconnect(): void
     {
-        sleep($this->reconnectDelay);
-        if ($this->reconnectAttempts < self::MAX_RECONNECT_ATTEMPTS) {
-            $this->close();
-            $this->initializeConnection();
-            $this->reconnectAttempts++;
-        } else {
+        if ($this->reconnectAttempts >= self::MAX_RECONNECT_ATTEMPTS) {
             throw new Exception("Max reconnect attempts reached");
         }
+
+        if ($this->reconnectAttempts > 0) {
+            sleep($this->reconnectAttempts);
+        }
+
+        $this->close();
+        $this->initializeConnection();
+        $this->reconnectAttempts++;
     }
 
     /**
@@ -245,7 +248,6 @@ class RabbitMQ
                 AMQPIOException |
                 AMQPTimeoutException $e
             ) {
-                $this->logLocalErrors($e);
                 $this->reconnect();
                 $this->work(); // retry consuming
             }
@@ -301,7 +303,6 @@ class RabbitMQ
                 throw new AMQPChannelClosedException('RabbitMQ channel is closed.');
             }
         } catch (\Throwable $e) {
-            $this->logLocalErrors($e);
             $this->reconnect();
         }
     }
@@ -421,7 +422,6 @@ class RabbitMQ
                 routing_key: $routingKey
             );
         } catch (AMQPConnectionClosedException | AMQPChannelClosedException | AMQPIOException | AMQPTimeoutException $e) {
-            $this->logLocalErrors($e);
             $this->reconnect();
             $this->attemptPublish($message, $routingKey, $body); // retry without regenerating
         } catch (\Throwable $e) {
