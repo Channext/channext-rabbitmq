@@ -2,7 +2,6 @@
 
 namespace Channext\ChannextRabbitmq\RabbitMQ;
 
-use Channext\ChannextRabbitmq\Exceptions\EventLoopException;
 use Channext\ChannextRabbitmq\Facades\RabbitMQAuth;
 use Channext\ChannextRabbitmq\RabbitMQ\RabbitMQPublishFinder;
 use Closure;
@@ -50,12 +49,7 @@ class RabbitMQ
     /**
      * @var int $maxReconnectAttempts
      */
-    private const MAX_RECONNECT_ATTEMPTS = 3;
-
-    /**
-     * @var int $reconnectDelay
-     */
-    private int $reconnectDelay = 5;
+    private const MAX_RECONNECT_ATTEMPTS = 5;
 
     /**
      * @var array $routes
