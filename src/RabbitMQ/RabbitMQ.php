@@ -308,17 +308,8 @@ class RabbitMQ
      */
     protected function listen(): void
     {
-        $this->checkConnection();
-        try {
-            $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
-            if ($message) $this->callback($message);
-        } catch (AMQPConnectionClosedException | AMQPChannelClosedException | AMQPIOException | AMQPTimeoutException $e) {
-            $this->reconnect();
-            $this->listen(); // retry
-        } catch (\Throwable $e) {
-            $this->logLocalErrors($e);
-            captureException($e);
-        }
+        $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
+        if ($message) $this->callback($message);
     }
 
     /**
@@ -327,7 +318,6 @@ class RabbitMQ
      */
     public function hasMessage(): bool
     {
-        $this->checkConnection();
         return (bool) $this->channel?->queue_declare(
             queue: config('rabbitmq.queue'),
             passive: true,
@@ -358,9 +348,8 @@ class RabbitMQ
         if (env("RABBIT_TEST", false)) {
             return;
         }
-
-        $this->checkConnection();
         try {
+            $this->checkConnection();
             $this->channel?->queue_declare(
                 queue: $queue,
                 durable: true,
@@ -419,8 +408,8 @@ class RabbitMQ
      */
     private function attemptPublish(RabbitMQMessage $message, string $routingKey, array $body): void
     {
-        $this->checkConnection();
         try {
+            $this->checkConnection();
             $this->channel?->basic_publish(
                 msg: $message->getOriginalMessage(),
                 exchange: config('rabbitmq.exchange'),
@@ -641,16 +630,10 @@ class RabbitMQ
      */
     protected function acknowledgeMessage(AMQPMessage $message): void
     {
-        $this->checkConnection();
         try {
             $message->ack();
-        } catch (AMQPConnectionClosedException | AMQPChannelClosedException | AMQPIOException | AMQPTimeoutException $e) {
-            $this->reconnect();
-            $this->acknowledgeMessage($message); // retry
         } catch (\Throwable $e) {
-            $this->logLocalErrors($e);
-            $data = json_decode($message->getBody(), true);
-            $this->captureExceptionWithScope($e, $data);
+            captureException($e);
         }
     }
 
