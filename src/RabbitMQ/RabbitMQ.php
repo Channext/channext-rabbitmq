@@ -308,8 +308,17 @@ class RabbitMQ
      */
     protected function listen(): void
     {
-        $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
-        if ($message) $this->callback($message);
+        $this->checkConnection();
+        try {
+            $message = $this->channel?->basic_get(queue: config('rabbitmq.queue'));
+            if ($message) $this->callback($message);
+        } catch (AMQPConnectionClosedException | AMQPChannelClosedException | AMQPIOException | AMQPTimeoutException $e) {
+            $this->reconnect();
+            $this->listen(); // retry
+        } catch (\Throwable $e) {
+            $this->logLocalErrors($e);
+            captureException($e);
+        }
     }
 
     /**
@@ -767,6 +776,7 @@ class RabbitMQ
 
         $counter = 0;
         while (true) {
+            $this->checkConnection();
             if ($this->hasMessage() || ++$counter > $stalePolls) {
                 $counter = 0;
                 $process = $this->makeProcess($options, $path);
