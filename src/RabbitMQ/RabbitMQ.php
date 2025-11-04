@@ -265,7 +265,7 @@ class RabbitMQ
                 if (!$consumerTag || !array_key_exists($consumerTag, $this->channel->callbacks)) {
                     throw new Exception('No consumer found');
                 }
-                $this->channel->wait(timeout: 3);
+                $this->channel->wait(timeout: config('rabbitmq.wait_timeout', 10));
             } catch (AMQPTimeoutException $exception) {
                 // something might be wrong, try to send heartbeat which involves select+write
                 $this->connection->checkHeartBeat();
