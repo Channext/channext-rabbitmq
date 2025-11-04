@@ -135,6 +135,7 @@ class RabbitMQ
                 durable: true,
                 auto_delete: false,
             );
+            $this->channel?->basic_qos(null, 10, null);
             $this->reconnectAttempts = 0;
         } catch (\Throwable $e) {
             captureException($e);
@@ -232,10 +233,10 @@ class RabbitMQ
      */
     protected function work(): void
     {
-        $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
+        $consumerTag = $this->channel?->basic_consume(queue: config('rabbitmq.queue'), callback: [$this, 'callback']);
         while (count($this->channel?->callbacks ?? []) > 0) {
             try {
-                $this->channel->wait();
+                $this->waitToConsume($consumerTag);
             } catch (
                 AMQPConnectionClosedException |
                 AMQPChannelClosedException |
@@ -457,12 +458,22 @@ class RabbitMQ
     {
         $data = json_decode($message->body, true);
         $route = $data['x-routing-key']  ?? $message->getRoutingKey() ?? '';
-        $this->consoleLog("Consuming message from route $route");
+        
         $this->setAuthUser($data);
+
         $routeData = $this->resolveRouteData($route);
         $action = $routeData[0] ?? null;
         $retry = $routeData[1] ?? false;
+
         if (!empty($action['controller']) && !empty($action['method']) && method_exists(object_or_class: $action['controller'], method: $action['method'])) {
+            if ($this->connection && $this->connection->isConnected()) {
+                try {
+                    $this->connection->checkHeartBeat();
+                } catch (\Throwable $hbEx) {
+                    captureException($hbEx);
+                }
+            }
+
             $this->createCallback(
                 controller: $action['controller'],
                 method: $action['method'],
@@ -640,8 +651,17 @@ class RabbitMQ
     protected function acknowledgeMessage(AMQPMessage $message): void
     {
         try {
-            $message->ack();
+            if ($this->channel && $this->channel->is_open()) {
+                $message->ack();
+            } else {
+                throw new \RuntimeException("Channel closed before ack");
+            }
         } catch (\Throwable $e) {
+            try {
+                $message->nack(false, true); // requeue
+            } catch (\Throwable $inner) {
+                captureException($inner);
+            }
             captureException($e);
         }
     }
