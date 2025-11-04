@@ -24,4 +24,5 @@ return [
     'queue' => env('RABBITMQ_QUEUE', 'notifications'),
     'api' => env('RABBITMQ_API', env('RABBITMQ_HOST', 'rabbitmq') . '/api'),
     'heartbeat' => env('RABBITMQ_HEARTBEAT', 60),
+    'wait_timeout' => env('RABBITMQ_WAIT_TIMEOUT', 10),
 ];
