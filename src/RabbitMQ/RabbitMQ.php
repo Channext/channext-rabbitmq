@@ -858,6 +858,11 @@ class RabbitMQ
         }
     }
 
+    /**
+     * Get defined routes
+     *
+     * @return array
+     */
     public function getDefinedRoutes(): array
     {
         return array_keys($this->routes);
@@ -907,17 +912,23 @@ class RabbitMQ
      */
     public function unbindUnused(): void
     {
-        $activeBindings = array_map(fn($binding) => $binding['routing_key'], $this->getBindings());
-        $this->defineRoutes();
-        $definedRoutes = $this->getDefinedRoutes();
-        // if global # is defined then remove all other bindings
-        if (in_array('#', $definedRoutes)) {
-            $definedRoutes = ['#'];
-        }
+        $this->checkConnection();
+        
+        try {
+            $activeBindings = array_map(fn($binding) => $binding['routing_key'], $this->getBindings());
+            $this->defineRoutes();
+            $definedRoutes = $this->getDefinedRoutes();
+            // if global # is defined then remove all other bindings
+            if (in_array('#', $definedRoutes)) {
+                $definedRoutes = ['#'];
+            }
 
-        $inactiveBindings = array_diff($activeBindings, $definedRoutes);
-        foreach ($inactiveBindings as $inactiveBinding) {
-            $this->deleteBinding($inactiveBinding);
+            $inactiveBindings = array_diff($activeBindings, $definedRoutes);
+            foreach ($inactiveBindings as $inactiveBinding) {
+                $this->deleteBinding($inactiveBinding);
+            }
+        } catch (\Throwable $e) {
+            captureException($e);
         }
     }
 
