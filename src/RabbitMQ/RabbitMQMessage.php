@@ -32,9 +32,15 @@ class RabbitMQMessage extends AMQPMessage
      */
     private static function setPayload(array $data): AMQPMessage
     {
-        $encoded = json_encode($data);
-        return new AMQPMessage(body: $encoded, properties: [
+        $encoded = json_encode(
+            $data,
+            JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+        );
+    
+        return new AMQPMessage($encoded, [
             'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT,
+            'content_type'  => 'application/json',
+            'content_encoding' => 'utf-8',
         ]);
     }
 
