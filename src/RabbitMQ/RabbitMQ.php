@@ -391,7 +391,11 @@ class RabbitMQ
         $headers['x-identifier'] = $identifier;
         $headers = $this->setUserData($headers);
 
-        $messageSize = strlen(json_encode($body));
+        $encoded = json_encode(
+            $body,
+            JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+        );
+        $messageSize = strlen($encoded);
         if ($messageSize > 524288) { // 512 KB
             $message = "Large RabbitMQ message body: {$messageSize} bytes for {$routingKey}";
             if ($identifier) {
