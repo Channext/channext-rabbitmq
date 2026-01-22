@@ -135,7 +135,7 @@ class RabbitMQ
                 durable: true,
                 auto_delete: false,
             );
-            $this->channel?->basic_qos(null, config('rabbitmq.prefetch', 10), null);
+            $this->channel?->basic_qos(null, config('rabbitmq.prefetch', 1), null);
             $this->reconnectAttempts = 0;
         } catch (\Throwable $e) {
             captureException($e);
